@@ -1,0 +1,9 @@
+This shell script fetches the latest weekly build (snapshot) of GCC.
+It also fetches the latest GDB snapshot. It does these things all by
+itself:
+
+* Get the tar balls from FTP sites
+* Extract them
+* Configure, make, make install
+
+You need to change the paths at the top of the script for your own needs.
