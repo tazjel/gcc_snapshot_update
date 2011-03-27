@@ -17,10 +17,18 @@
     
 # This shell script fetches the latest GCC snapshot and builds the GCC compiler itself.
 
-GCC_VERSION=4.7
-GDB_VERSION=7.2
-GCC_PREFIX=/home/bdsatish/gnu/installed/gcc
-GDB_PREFIX=/home/bdsatish/gnu/installed/gdb
+GCC_VERSION=4.7         # <= 4.7
+GDB_VERSION=7.2         # <= 7.2
+OPENMPI_VERSION=1.4     # <= 1.5
+
+INSTALL_DIR=/home/bdsatish/gnu/installed
+GCC_PREFIX=$INSTALL_DIR/gcc
+GDB_PREFIX=$INSTALL_DIR/gdb
+GMP_PREFIX=$INSTALL_DIR/gmp
+MPFR_PREFIX=$INSTALL_DIR/mpfr
+MPC_PREFIX=$INSTALL_DIR/mpc
+OPENMPI_PREFIX=$INSTALL_DIR/openmpi
+
 DOWNLOAD_DIR=/home/bdsatish/gnu
 SYMLINK_DIR=$HOME/bin
 
@@ -29,17 +37,21 @@ cat <<EOF
 Usage:
   snapshot --gcc              # Fetch and build GCC only
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
-  snapshot --all              # Fetch and build GCC and GDB, from scratch
+  snapshot --openmpi          # Fetch and build Open MPI library
+  snapshot --all              # Fetch and build GCC and GDB, from scratch  
 EOF
 exit 1
 }
 
+#-------------------- FUNCTION DEFINITIONS ONLY -------------------------------------
+#  
 #  --with-long-double-128, --build=i786-pc-linux-gnu, --disable-decimal-float 
 # Wihout building decimal-float, build time is around 21 min
 gcc_configure() {
 ./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
-      --enable-static --disable-shared --with-system-zlib
+      --enable-static --disable-shared --with-system-zlib --disable-decimal-float  \
+      --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
 }
 
 gcc_build() {
@@ -63,7 +75,8 @@ gcc_build() {
 
 gdb_configure() {
 ./configure --prefix=$GDB_PREFIX --enable-languages=fortran --build=i786-pc-linux-gnu \
---enable-libquadmath --enable-libquadmath-support --disable-bootstrap  --disable-libssp
+--enable-libquadmath --enable-libquadmath-support --disable-bootstrap  --disable-libssp  \
+--with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
 }
 
 gdb_build() {
@@ -79,7 +92,34 @@ gdb_build() {
     ln -s $GDB_PREFIX/bin/gdbtui $SYMLINK_DIR/gdbtui
 }
 
-# Issue usage if no parameters are given.
+openmpi_build() {
+
+wget http://www.open-mpi.org/software/ompi/v${OPENMPI_VERSION}/downloads/latest_snapshot.txt
+VERSION=`cat latest_snapshot.txt`
+wget http://www.open-mpi.org/software/ompi/v${OPENMPI_VERSION}/downloads/openmpi-${VERSION}.tar.bz2
+tar xjvf openmpi-${VERSION}.tar.bz2
+
+rm latest_snapshot.txt
+rm openmpi-${VERSION}.tar.bz2
+
+cd openmpi-${VERSION}
+# f90-size=3 means upto 3D arrays are supported. Standard Fortran
+# can support upto 7-D arrays, which we don't need
+#
+# CFLAGS enables 128-bit (16-byte) reals in C programs, which in turn
+# enables REAL*16 support for F90 and F77
+./configure --enable-static --disable-shared --disable-mpi-cxx \
+            --disable-mpi-cxx-seek --enable-mpi-threads \
+            --prefix=$OPENMPI_PREFIX \
+            --without-memory-manager --without-libnuma  \
+            --with-mpi-f90-size=3 CFLAGS=-m128bit-long-double 
+
+make -l 0.05 -j 1
+make install
+}
+
+#------------- EXECUTION STARTS HERE ------------------
+#  Issue usage if no parameters are given.
 test $# -eq 0 && usage
 
 if [[ $1 == '--all' || $1 == '--gcc' ]]; then
@@ -104,24 +144,39 @@ if [[ $1 == '--all' || $1 == '--gcc' ]]; then
 
     tar xjvf gcc-core-*.tar.bz2
     tar xjvf gcc-fortran-*.tar.bz2
-    tar xjvf gmp-*.tar.bz2 -C gcc-$GCC_VERSION*/
-    tar xjvf mpfr-*.tar.bz2 -C gcc-$GCC_VERSION*/
-    tar xzvf mpc-*.tar.gz -C gcc-$GCC_VERSION*/
+    tar xjvf gmp-*.tar.bz2
+    tar xjvf mpfr-*.tar.bz2
+    tar xzvf mpc-*.tar.gz
     tar xjvf gdb.tar.bz2
     rm -rf *.tar.bz2
     rm -rf *.tar.gz
 
-
     # Rename folders
     mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
-    mv gcc-$GCC_VERSION/gmp-* gcc-$GCC_VERSION/gmp
-    mv gcc-$GCC_VERSION/mpfr-* gcc-$GCC_VERSION/mpfr
-    mv gcc-$GCC_VERSION/mpc-* gcc-$GCC_VERSION/mpc
     mv gdb-$GDB_VERSION* gdb-$GDB_VERSION
+
+    # First, build the dependencies: GMP, MPFR and MPC
+    echo 
+    echo "Building GMP, MPFR and MPC ..."
+    cd gmp*
+    ./configure --prefix=$GMP_PREFIX --enable-static --disable-shared
+    make -j 2
+    make install
+    cd ../mpfr*
+    ./configure --prefix=$MPFR_PREFIX --enable-static --disable-shared --with-gmp=$GMP_PREFIX
+    make -j 2
+    make install
+    cd ../mpc*
+    ./configure --prefix=$MPC_PREFIX --enable-static --disable-shared \
+                --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX
+    make -j 2
+    make install
+    cd ..
+    echo "GMP, MPFR and MPC installed successfully !"
 
     ## Start the build ! See http://gcc.gnu.org/wiki/GFortranSource
     echo 
-    echo "Starting build..."
+    echo "Starting gcc build..."
     cd gcc-$GCC_VERSION
     gcc_configure
     gcc_build
@@ -139,6 +194,8 @@ elif [ $1 == '--update' ]; then
     ./contrib/gcc_update --patch ../gcc-fortran-*.diff.bz2
     gcc_build
     rm ../*.diff.bz2
+elif [ $1 == '--openmpi' ]; then
+    openmpi_build
 else
     usage
 fi
