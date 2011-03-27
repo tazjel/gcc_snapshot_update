@@ -17,7 +17,7 @@
     
 # This shell script fetches the latest GCC snapshot and builds the GCC compiler itself.
 
-GCC_VERSION=4.6
+GCC_VERSION=4.7
 GDB_VERSION=7.2
 GCC_PREFIX=/home/bdsatish/gnu/installed/gcc
 GDB_PREFIX=/home/bdsatish/gnu/installed/gdb
@@ -27,14 +27,19 @@ SYMLINK_DIR=$HOME/bin
 usage() {
 cat <<EOF
 Usage:
-  gcc_snapshot --new              # Fetch the latest snapshot sources
-  gcc_snapshot --update           # Fetch and apply patch to existing snapshot
+  snapshot --gcc              # Fetch and build GCC only
+  snapshot --update           # Fetch and apply patch to existing GCC snapshot
+  snapshot --all              # Fetch and build GCC and GDB, from scratch
 EOF
 exit 1
 }
 
+#  --with-long-double-128, --build=i786-pc-linux-gnu, --disable-decimal-float 
+# Wihout building decimal-float, build time is around 21 min
 gcc_configure() {
-./configure --prefix=$GCC_PREFIX --enable-languages=fortran --build=i786-pc-linux-gnu --enable-checking=release --disable-libmudflap --enable-libgomp --disable-shared --disable-bootstrap  
+./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  \
+      --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
+      --enable-static --disable-shared --with-system-zlib
 }
 
 gcc_build() {
@@ -57,7 +62,8 @@ gcc_build() {
 }
 
 gdb_configure() {
-./configure --prefix=$GDB_PREFIX --enable-languages=fortran --build=i786-pc-linux-gnu --enable-libquadmath --enable-libquadmath-support --disable-bootstrap  --disable-libssp
+./configure --prefix=$GDB_PREFIX --enable-languages=fortran --build=i786-pc-linux-gnu \
+--enable-libquadmath --enable-libquadmath-support --disable-bootstrap  --disable-libssp
 }
 
 gdb_build() {
@@ -76,14 +82,12 @@ gdb_build() {
 # Issue usage if no parameters are given.
 test $# -eq 0 && usage
 
-if [ $1 == '--new' ]; then
+if [[ $1 == '--all' || $1 == '--gcc' ]]; then
     echo "Fetching latest ${GCC_VERSION} snapshot.Please wait..."
     cd $DOWNLOAD_DIR
 
     ## Clean up existing stuff (if any)
-    rm -rf gcc-$GCC_VERSION
-    rm -rf gdb-$GDB_VERSION
-    rm -rf *.tar.bz2
+    rm -rf *.bz2
     rm -rf *.gz
 
     # Fetch and extract the latest GCC snapshot, GMP, MPC and MPFR from GCC website
@@ -93,6 +97,11 @@ if [ $1 == '--new' ]; then
     wget ftp://gcc.gnu.org/pub/gcc/infrastructure/mpfr-*.tar.bz2
     wget ftp://gcc.gnu.org/pub/gcc/infrastructure/mpc-*.tar.gz
     wget ftp://gcc.gnu.org/pub/gdb/snapshots/current/gdb.tar.bz2
+
+    ## Clean up existing stuff (if any)
+    rm -rf gcc-$GCC_VERSION
+    rm -rf gdb-$GDB_VERSION
+
     tar xjvf gcc-core-*.tar.bz2
     tar xjvf gcc-fortran-*.tar.bz2
     tar xjvf gmp-*.tar.bz2 -C gcc-$GCC_VERSION*/
@@ -116,9 +125,11 @@ if [ $1 == '--new' ]; then
     cd gcc-$GCC_VERSION
     gcc_configure
     gcc_build
-    cd ../gdb-$GDB_VERSION
-    gdb_configure
-    gdb_build
+    if [[ $1 == '--all' ]]; then
+        cd ../gdb-$GDB_VERSION
+        gdb_configure
+        gdb_build
+    fi
     echo "Done."
 elif [ $1 == '--update' ]; then
     wget ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/diffs/gcc-core-*.diff.bz2
