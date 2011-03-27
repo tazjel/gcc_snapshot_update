@@ -1,13 +1,15 @@
 This shell script fetches the latest weekly build (snapshot) of GCC.
-It also fetches the latest GDB snapshot. It does these things all by
-itself:
+It does these things all by itself:
 
-* Get the tar balls from FTP sites
+* Get the tar balls from FTP / HTTP sites
 * Extract them
 * Configure, make, make install
 
+The fetch-build-install cycle also handles GDB, GMP, MPFR, MPC and
+OpenMPI.
+
 You need to change the paths at the top of the script for your own
-needs.
+needs. Tested on Ubuntu 10.10
 
 Mail: mail @AT@ bdsatish .DOT. in
 
