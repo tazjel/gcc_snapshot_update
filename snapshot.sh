@@ -18,6 +18,8 @@
 # This shell script fetches the latest GCC snapshot and builds the GCC compiler itself.
 # Latest version can be found at: https://github.com/bdsatish/gcc_snapshot_update/
 
+set -e
+
 usage() {
 cat <<EOF
 Usage:
@@ -139,6 +141,7 @@ gcc_build() {
     mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
    
+    # Needed ?  --enable-fixed-point --with-long-double-128
     ./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran --disable-lto \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --with-system-zlib --disable-decimal-float  \
@@ -223,7 +226,7 @@ openmpi_build() {
     tar --extract --overwrite --bzip2 --verbose --file  openmpi-${VERSION}.tar.bz2
     cd openmpi-${VERSION}
     
-    # f90-size=3 means upto 3D arrays are supported. Standard Fortran
+    # max-array-dim=3 means upto 3D arrays are supported. Standard Fortran
     # can support upto 7-D arrays, which we don't need
     #
     # CFLAGS enables 128-bit (16-byte) reals in C programs, which in turn
@@ -231,11 +234,23 @@ openmpi_build() {
     ./configure --prefix=$OMPI_PREFIX --enable-static --disable-shared \
             --disable-mpi-cxx --disable-mpi-cxx-seek --enable-mpi-threads \
             --without-memory-manager --without-libnuma  \
-            --with-mpi-f90-size=3 CFLAGS=-m128bit-long-double 
+            --with-f90-max-array-dim=3 CFLAGS=-m128bit-long-double \
+            --with-wrapper-cflags=-m128bit-long-double
 
     make clean
     make -j 1
     make install
+
+    mkdir -p $SYMLINK_BIN
+    ln -sfn $OMPI_PREFIX/bin/mpicc $SYMLINK_BIN/mpicc
+    ln -sfn $OMPI_PREFIX/bin/mpif77 $SYMLINK_BIN/mpif77
+    ln -sfn $OMPI_PREFIX/bin/mpif90 $SYMLINK_BIN/mpif90
+    ln -sfn $OMPI_PREFIX/bin/mpirun $SYMLINK_BIN/mpirun
+    ln -sfn $OMPI_PREFIX/bin/mpiexec $SYMLINK_BIN/mpiexec
+    
+    ln -sfn $OMPI_PREFIX/bin/ompi_info $SYMLINK_BIN/ompi_info
+    #ln -sfn $OMPI_PREFIX/bin/gfortran $SYMLINK_BIN/mpif90
+    #ln -sfn $OMPI_PREFIX/bin/gcov $SYMLINK_BIN/mpirun
 
     rm ../latest_snapshot.txt
     rm ../openmpi-${VERSION}.tar.bz2
