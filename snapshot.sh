@@ -52,7 +52,8 @@ GDB_PREFIX=$INSTALL_DIR/gdb          # ${GDB_PREFIX}/bin/gdb is the executable
 GMP_PREFIX=$INSTALL_DIR/gmp          # ${GMP_PREFIX}/lib/libgmp.a is the library
 MPFR_PREFIX=$INSTALL_DIR/mpfr        # ${MPFR_PREFIX}/lib/libmpfr.a is the library
 MPC_PREFIX=$INSTALL_DIR/mpc          # ${MPC_PREFIX}/lib/libmpc.a is the library
-OMPI_PREFIX=$INSTALL_DIR/openmpi     # ${OMPI_PREFIX}/lib/libopenmpi.a is the library
+OMPI_PREFIX=$INSTALL_DIR/openmpi     # ${OMPI_PREFIX}/lib/libmpi.a is the library
+                                     # ${OMPI_PREFIX}/bin/mpicc is the gcc wrapper
 
 DOWNLOAD_DIR=/home/bdsatish/gnu
 
@@ -226,16 +227,15 @@ openmpi_build() {
     tar --extract --overwrite --bzip2 --verbose --file  openmpi-${VERSION}.tar.bz2
     cd openmpi-${VERSION}
     
-    # max-array-dim=3 means upto 3D arrays are supported. Standard Fortran
-    # can support upto 7-D arrays, which we don't need
-    #
-    # CFLAGS enables 128-bit (16-byte) reals in C programs, which in turn
-    # enables REAL*16 support for F90 and F77
+    # Passed to CFLAGS to enable 128-bit (16-byte) reals in C programs, 
+    # which in turn enables REAL*16 support for F90 and F77 (libquadmath!)
+    LONG_DOUBLE=-m128bit-long-double
+    MAX_ARRAY_DIM=3    # max 3D arrays are supported, can be up to 7
     ./configure --prefix=$OMPI_PREFIX --enable-static --disable-shared \
             --disable-mpi-cxx --disable-mpi-cxx-seek --enable-mpi-threads \
             --without-memory-manager --without-libnuma  \
-            --with-f90-max-array-dim=3 CFLAGS=-m128bit-long-double \
-            --with-wrapper-cflags=-m128bit-long-double
+            --with-f90-max-array-dim=${MAX_ARRAY_DIM} \
+            --with-wrapper-cflags=${LONG_DOUBLE}  CFLAGS=${LONG_DOUBLE} 
 
     make clean
     make -j 1
