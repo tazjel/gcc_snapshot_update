@@ -54,6 +54,11 @@ OMPI_PREFIX=$INSTALL_DIR/openmpi     # ${OMPI_PREFIX}/lib/libopenmpi.a is the li
 
 DOWNLOAD_DIR=/home/bdsatish/gnu
 
+# Global variables
+GMP_INSTALLED=false
+MPFR_INSTALLED=false
+MPC_INSTALLED=false
+
 #-------------------------- FUNCTION DEFINITIONS ONLY ------------------------------
 # The actual script execution starts after all these definitions ! See below !
 
@@ -77,8 +82,8 @@ gmp_build() {
 }
 
 mpfr_build() {
-    if [ ${GMP_INSTALLED} != true ]; then  gmp_build;  fi
-
+    if ! $GMP_INSTALLED; then gmp_build; fi
+    
     PWD=`pwd`
     cd $DOWNLOAD_DIR
     wget -N ftp://gcc.gnu.org/pub/gcc/infrastructure/mpfr-*.tar.bz2
@@ -97,8 +102,8 @@ mpfr_build() {
 }
 
 mpc_build() {
-    if [ ${GMP_INSTALLED} != true ]; then  gmp_build;  fi
-    if [ ${MPFR_INSTALLED} != true ]; then  mpfr_build;  fi
+    if ! $GMP_INSTALLED; then gmp_build; fi
+    if ! $MPFR_INSTALLED; then mpfr_build; fi
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -119,9 +124,9 @@ mpc_build() {
 }
 
 gcc_build() {
-    if [ !${GMP_INSTALLED} ]; then  gmp_build;  fi
-    if [ !${MPFR_INSTALLED} ]; then  mpfr_build;  fi
-    if [ !${MPC_INSTALLED} ]; then  mpc_build;  fi
+    if ! $GMP_INSTALLED; then gmp_build; fi
+    if ! $MPFR_INSTALLED; then mpfr_build; fi
+    if ! $MPC_INSTALLED; then mpc_build; fi
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -134,7 +139,7 @@ gcc_build() {
     mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
    
-    ./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  \
+    ./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran --disable-lto \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --with-system-zlib --disable-decimal-float  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
@@ -175,9 +180,9 @@ gcc_update() {
 }
 
 gdb_build() {
-    if [ ${GMP_INSTALLED} != true ]; then  gmp_build;  fi
-    if [ ${MPFR_INSTALLED} != true ]; then  mpfr_build;  fi
-    if [ ${MPC_INSTALLED} != true ]; then  mpc_build;  fi
+    if ! $GMP_INSTALLED; then gmp_build; fi
+    if ! $MPFR_INSTALLED; then mpfr_build; fi
+    if ! $MPC_INSTALLED; then mpc_build; fi
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
