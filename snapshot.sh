@@ -23,7 +23,7 @@ set -e
 usage() {
 cat <<EOF
 Usage:
-  snapshot --gcc              # Fetch and build GCC weekly snapshot
+  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, C++, Fortran)
                               # (in addition, implies --gmp, --mpfr and --mpc)
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
   snapshot --openmpi          # Fetch and build Open MPI library
@@ -78,7 +78,7 @@ gmp_build() {
     make -j 2
     make install
 
-    rm -rf ../gmp-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gmp-*.tar.bz2
     cd $PWD
 
     GMP_INSTALLED=true
@@ -98,7 +98,7 @@ mpfr_build() {
     make -j 2
     make install
 
-    rm -rf ../mpfr-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/mpfr-*.tar.bz2
     cd $PWD
 
     MPFR_INSTALLED=true
@@ -120,7 +120,7 @@ mpc_build() {
     make -j 2
     make install
 
-    rm -rf ../mpc-*.tar.gz
+    rm -rf $DOWNLOAD_DIR/mpc-*.tar.gz
     cd $PWD
 
     MPC_INSTALLED=true    
@@ -135,17 +135,21 @@ gcc_build() {
     cd $DOWNLOAD_DIR
     wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-core-*.tar.bz2
     wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-fortran-*.tar.bz2
+    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-g++-*.tar.bz2
     tar --extract --overwrite --bzip2 --verbose --file gcc-core-*.tar.bz2
     tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-*.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file gcc-g++-*.tar.bz2
     
     rm -rf gcc-$GCC_VERSION
     mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
+    mkdir -p build
+    cd build
    
-    # Needed ?  --enable-fixed-point --with-long-double-128
-    ./configure --prefix=$GCC_PREFIX --enable-languages=c,fortran --disable-lto \
+    # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
+    ../configure --prefix=$GCC_PREFIX --enable-languages=c,c++,fortran  \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
-      --enable-static --disable-shared --with-system-zlib --disable-decimal-float  \
+      --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
 
     make clean
@@ -155,11 +159,13 @@ gcc_build() {
     mkdir -p $SYMLINK_BIN
     ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/gcc
     ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
-    ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
     ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
+    ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
+    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/g++
 
-    rm -rf ../gcc-core-*.tar.bz2
-    rm -rf ../gcc-fortran-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gcc-core-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gcc-fortran-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gcc-g++-*.tar.bz2
     cd $PWD
 
     GCC_INSTALLED=true
@@ -179,7 +185,7 @@ gcc_update() {
     make -j 1
     make install
 
-    rm ../*.diff.bz2
+    rm $DOWNLOAD_DIR/*.diff.bz2
     cd $PWD
 }
 
@@ -210,7 +216,7 @@ gdb_build() {
     ln -sfn $GDB_PREFIX/bin/gdbserver $SYMLINK_BIN/gdbserver
     ln -sfn $GDB_PREFIX/bin/gdbtui $SYMLINK_BIN/gdbtui
 
-    rm -rf ../gdb.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gdb.tar.bz2
     cd $PWD
 
     GDB_INSTALLED=true
@@ -252,8 +258,8 @@ openmpi_build() {
     #ln -sfn $OMPI_PREFIX/bin/gfortran $SYMLINK_BIN/mpif90
     #ln -sfn $OMPI_PREFIX/bin/gcov $SYMLINK_BIN/mpirun
 
-    rm ../latest_snapshot.txt
-    rm ../openmpi-${VERSION}.tar.bz2
+    rm $DOWNLOAD_DIR/latest_snapshot.txt
+    rm $DOWNLOAD_DIR/openmpi-${VERSION}.tar.bz2
     cd $PWD
 
     OPENMPI_INSTALLED=true
