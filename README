@@ -5,8 +5,8 @@ It does these things all by itself:
 * Extract them
 * Configure, make, make install
 
-The fetch-build-install cycle also handles GDB, GMP, MPFR, MPC and
-OpenMPI.
+The fetch-build-install cycle also handles GDB, GMP, MPFR, MPC,
+OpenMPI and Fortran GSL.
 
 You need to change the paths at the top of the script for your own
 needs. Tested on Ubuntu 10.10

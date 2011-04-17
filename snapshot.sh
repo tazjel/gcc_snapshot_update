@@ -27,6 +27,7 @@ Usage:
                               # (in addition, implies --gmp, --mpfr and --mpc)
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
   snapshot --openmpi          # Fetch and build Open MPI library
+  snapshot --fgsl             # Fetch and build Fortran GSL Library
   snapshot --gmp              # Fetch and build GMP library
   snapshot --mpfr             # Fetch and build MPFR library (implies --gmp)
   snapshot --mpc              # Fetch and build MPC library (implies --gmp, --mpfr)
@@ -38,6 +39,7 @@ exit 1
 GCC_VERSION=4.7         # <= 4.7
 GDB_VERSION=7.2         # <= 7.2
 OPENMPI_VERSION=1.4     # <= 1.5
+GSL_VERSION=1.14        # <= 1.14
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
 SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here 
@@ -45,7 +47,8 @@ SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here
 # Installation directories, change them if needed.
 # These are just passed to --prefix of corresponding 'configure' script
 
-INSTALL_DIR=/home/bdsatish/gnu/installed
+INSTALL_DIR=/home/bdsatish/foss/installed
+DOWNLOAD_DIR=/home/bdsatish/foss
 
 GCC_PREFIX=$INSTALL_DIR/gcc          # ${GCC_PREFIX}/bin/gcc is the executable
 GDB_PREFIX=$INSTALL_DIR/gdb          # ${GDB_PREFIX}/bin/gdb is the executable
@@ -54,8 +57,9 @@ MPFR_PREFIX=$INSTALL_DIR/mpfr        # ${MPFR_PREFIX}/lib/libmpfr.a is the libra
 MPC_PREFIX=$INSTALL_DIR/mpc          # ${MPC_PREFIX}/lib/libmpc.a is the library
 OMPI_PREFIX=$INSTALL_DIR/openmpi     # ${OMPI_PREFIX}/lib/libmpi.a is the library
                                      # ${OMPI_PREFIX}/bin/mpicc is the gcc wrapper
-
-DOWNLOAD_DIR=/home/bdsatish/gnu
+                                     
+GSL_PREFIX=$INSTALL_DIR/gsl          # ${FGSL_PREFIX}/lib/libgsl.a
+FGSL_PREFIX=$INSTALL_DIR/fgsl        # ${FGSL_PREFIX}/lib/libfgsl_xxx.a
 
 # Global variables
 GMP_INSTALLED=false
@@ -265,6 +269,37 @@ openmpi_build() {
     OPENMPI_INSTALLED=true
 }
 
+fgsl_build() {
+
+    PWD=`pwd`
+    
+    # First build GNU GSL before Fortran GSL
+    cd $DOWNLOAD_DIR
+    wget -N http://ftp.gnu.org/gnu/gsl/gsl-${GSL_VERSION}.tar.gz
+    tar --extract --overwrite --gzip --verbose --file  gsl-${GSL_VERSION}.tar.gz
+    cd gsl-${GSL_VERSION}
+
+    ./configure --prefix=${GSL_PREFIX}  --enable-static --disable-shared
+    make clean
+    make -j 1
+    make install
+    
+    cd $DOWNLOAD_DIR
+    FGSL_VERSION=0.9.3
+    wget -N http://www.lrz.de/services/software/mathematik/gsl/fortran/fgsl-${FGSL_VERSION}.tar.gz
+    tar --extract --overwrite --gzip --verbose --file  fgsl-${FGSL_VERSION}.tar.gz
+    cd fgsl-${FGSL_VERSION}
+    ./configure --prefix ${FGSL_PREFIX}  --f90 gfortran --gsl ${GSL_PREFIX}
+    make -j 1
+    make install
+    
+    rm $DOWNLOAD_DIR/fgsl-${FGSL_VERSION}.tar.gz
+    rm $DOWNLOAD_DIR/gsl-${GSL_VERSION}.tar.gz
+
+    cd $PWD
+    FGSL_INSTALLED=true
+}
+
 #------------------------- EXECUTION STARTS HERE --------------------------
 
 #  Issue usage if no parameters are given.
@@ -284,6 +319,8 @@ elif [ $1 == '--mpfr' ]; then
     mpfr_build
 elif [ $1 == '--mpc' ]; then
     mpc_build
+elif [ $1 == '--fgsl' ]; then
+    fgsl_build
 else
     usage
 fi
