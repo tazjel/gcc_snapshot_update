@@ -23,7 +23,7 @@ set -e
 usage() {
 cat <<EOF
 Usage:
-  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, C++, Fortran)
+  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
                               # (in addition, implies --gmp, --mpfr and --mpc)
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
   snapshot --openmpi          # Open MPI library
@@ -156,7 +156,7 @@ gcc_build() {
     cd build
    
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
-    ../configure --prefix=$GCC_PREFIX --enable-languages=c,c++,fortran  \
+    ../configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
