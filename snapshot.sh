@@ -142,12 +142,26 @@ gcc_build() {
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-core-*.tar.bz2
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-fortran-*.tar.bz2
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-g++-*.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gcc-core-*.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-*.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gcc-g++-*.tar.bz2
+    
+    # First line of README starts like:
+    # Snapshot gcc-4.7-20110430 is now available on
+    wget -O /tmp/README.gcc ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/README
+    DATE=`cat /tmp/README.gcc | head -n 1 | cut -d' ' -f 2 | cut -d'-' -f 3`
+
+    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-core-$GCC_VERSION-$DATE.tar.bz2
+    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
+    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-testsuite-$GCC_VERSION-$DATE.tar.bz2
+    # wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-g++-*.tar.bz2
+
+    tar --extract --overwrite --bzip2 --verbose --file gcc-core-$GCC_VERSION-$DATE.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
+    # tar --extract --overwrite --bzip2 --verbose --file gcc-g++-$GCC_VERSION-$DATE.tar.bz2
+
+    # We only extract the directories related to GFortran testing    
+    tar --extract --overwrite --bzip2 --verbose --file gcc-testsuite-$GCC_VERSION-$DATE.tar.bz2    \
+                gcc-$GCC_VERSION-$DATE/gcc/testsuite/gfortran.dg                                   \
+                gcc-$GCC_VERSION-$DATE/gcc/testsuite/gfortran.fortran-torture
+
     
     rm -rf gcc-$GCC_VERSION
     mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
@@ -170,10 +184,11 @@ gcc_build() {
     ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
     ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
     ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
-    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/g++
+    # ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/g++
 
     rm -rf $DOWNLOAD_DIR/gcc-core-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-fortran-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gcc-testsuite-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-g++-*.tar.bz2
     cd $PWD
 
