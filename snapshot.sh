@@ -136,6 +136,9 @@ mpc_build() {
 }
 
 gcc_build() {
+    GMP_INSTALLED=true
+    MPFR_INSTALLED=true
+    MPC_INSTALLED=true
     if ! $GMP_INSTALLED; then gmp_build; fi
     if ! $MPFR_INSTALLED; then mpfr_build; fi
     if ! $MPC_INSTALLED; then mpc_build; fi
@@ -148,23 +151,14 @@ gcc_build() {
     wget -O /tmp/README.gcc ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/README
     DATE=`cat /tmp/README.gcc | head -n 1 | cut -d' ' -f 2 | cut -d'-' -f 3`
 
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-core-$GCC_VERSION-$DATE.tar.bz2
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
-    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-testsuite-$GCC_VERSION-$DATE.tar.bz2
-    # wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-g++-*.tar.bz2
+    wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-$GCC_VERSION-$DATE.tar.bz2
 
-    tar --extract --overwrite --bzip2 --verbose --file gcc-core-$GCC_VERSION-$DATE.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file gcc-$GCC_VERSION-$DATE.tar.bz2
+    # tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
     # tar --extract --overwrite --bzip2 --verbose --file gcc-g++-$GCC_VERSION-$DATE.tar.bz2
 
-    # We only extract the directories related to GFortran testing    
-    tar --extract --overwrite --bzip2 --verbose --file gcc-testsuite-$GCC_VERSION-$DATE.tar.bz2    \
-                gcc-$GCC_VERSION-$DATE/gcc/testsuite/gfortran.dg                                   \
-                gcc-$GCC_VERSION-$DATE/gcc/testsuite/gfortran.fortran-torture
-
-    
     rm -rf gcc-$GCC_VERSION
-    mv gcc-$GCC_VERSION* gcc-$GCC_VERSION
+    mv gcc-$GCC_VERSION-$DATE gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
     mkdir -p build
     cd build
