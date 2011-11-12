@@ -34,6 +34,7 @@ Usage:
   snapshot --mpfr             # Multi-Precision Floating Point library (implies --gmp)
   snapshot --mpc              # Multi-Precision Complex arithmetic library (implies --gmp, --mpfr)
   snapshot --gdb              # GNU Debugger snapshot
+  snapshot --d                # GCC-based D Compiler (GDC)
 EOF
 exit 1
 }
@@ -65,6 +66,7 @@ GSL_PREFIX=$INSTALL_DIR/gsl          # ${FGSL_PREFIX}/lib/libgsl.a
 FGSL_PREFIX=$INSTALL_DIR/fgsl        # ${FGSL_PREFIX}/lib/libfgsl_xxx.a
 LAPACK_PREFIX=$INSTALL_DIR/lapack    # liblapack.a AND libblas.a go here
 FFTW_PREFIX=$INSTALL_DIR/fftw        # libfftw.a
+GDC_PREFIX=$INSTALL_DIR/d            # ${GDC_PREFIX}/bin/gdc (or gdmd)
 
 # Global variables
 GMP_INSTALLED=false
@@ -385,7 +387,58 @@ fftw_build() {
 
     rm $DOWNLOAD_DIR/NEWS
     rm $DOWNLOAD_DIR/fftw-${FFTW_VERSION}.tar.gz
+
+    cd $PWD
+    FFTW_INSTALLED=true
 }
+
+gdc_build()
+{
+    PWD=`pwd`
+    GCC_BASE=4.6.1   # GCC version used to build D
+
+    cd $DOWNLOAD_DIR
+    
+    wget -N  https://bitbucket.org/goshawk/gdc/get/tip.tar.gz  -O gdc.tar.gz
+    tar --extract --overwrite --gzip --verbose --file gdc.tar.gz
+    mv goshawk-gdc-tip gdc
+    mkdir gdc/dev
+    cd gdc/dev
+
+    wget -N ftp://gcc.gnu.org/pub/gcc/releases/gcc-$GCC_BASE/gcc-core-$GCC_BASE.tar.bz2
+    wget -N ftp://gcc.gnu.org/pub/gcc/releases/gcc-$GCC_BASE/gcc-g++-$GCC_BASE.tar.bz2
+
+    tar --extract --overwrite --bzip2 --verbose --file gcc-core-$GCC_BASE.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file gcc-g++-$GCC_BASE.tar.bz2
+
+    rm gcc-*.tar.bz2
+
+    cd gcc-$GCC_BASE
+    ln -s ../../../d gcc/d
+    ./gcc/d/setup-gcc.sh -v2
+
+    mkdir objdir
+    cd objdir 
+    ../configure --prefix=$GDC_PREFIX --enable-languages=d \
+                 --disable-multilib --disable-shared --enable-checking=release \
+                 --disable-bootstrap --disable-nls --disable-libgomp --enable-static \
+                 --disable-decimal-float --with-system-zlib --disable-libmudflap \
+                 --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX \
+                 --with-bugurl="https://bitbucket.org/goshawk/gdc/issues"
+
+    make -j2
+    make install
+
+    ln -sfn $GDC_PREFIX/bin/gdc $SYMLINK_BIN/gdc
+    ln -sfn $GDC_PREFIX/bin/gdmd $SYMLINK_BIN/gdmd
+
+    rm $DOWNLOAD_DIR/gdc.tar.gz
+
+    cd $PWD
+    GDC_INSTALLED=true
+}
+
+
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -412,6 +465,8 @@ elif [ $1 == '--lapack' ]; then
     lapack_build
 elif [ $1 == '--fftw' ]; then
     fftw_build
+elif [ $1 == '--d' ]; then
+    gdc_build
 else
     usage
 fi
