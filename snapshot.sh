@@ -162,13 +162,18 @@ gcc_build() {
     rm -rf gcc-$GCC_VERSION
     mv gcc-$GCC_VERSION-$DATE gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
+
+    # Remove everything except C, C++ and Fortran (saves ~600 MB disk space)
+    rm -rf gnattools libada libgo libjava libobjc gcc/ada gcc/go gcc/java gcc/objc gcc/objcp gcc/testsuite
+
     mkdir -p build
     cd build
    
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
-    ../configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  \
+    ../configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  --disable-multilib --disable-multiarch \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
+      --disable-build-poststage1-with-cxx   \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
 
     make clean
