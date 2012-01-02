@@ -169,10 +169,6 @@ gcc_build()
         return
     fi
 
-    gmp_build            # GCC requires GMP, MPFR and MPC 
-    mpfr_build
-    mpc_build
-
     gpp=false
     gnat=false
     gfortran=false
@@ -203,9 +199,20 @@ gcc_build()
               langs+=",fortran"
               gfortran=true
               ;;
+        C | c )
+            echo "C is built always ..." > /dev/null
+              ;;
+            * )
+            echo "I do not know (or do not want to) build GCC for" "$1"
+            exit
+            ;;
       esac
       shift 1
     done
+
+    gmp_build            # GCC requires GMP, MPFR and MPC 
+    mpfr_build
+    mpc_build
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -232,13 +239,11 @@ gcc_build()
     cd build
    
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
-    # export LDFLAGS="-L$GMP_PREFIX/lib -lstdc++"       # Else ClooG fails to link libgmpxx
     ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
       --disable-build-poststage1-with-cxx  --disable-build-with-cxx  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
-      # --with-ppl=$PPL_PREFIX --with-cloog=$CLOOG_PREFIX
 
     make clean
     make -j 2
@@ -287,8 +292,8 @@ gcc_build()
 
 }
 
-gcc_update() {
-
+gcc_update() 
+{
     PWD=`pwd`
     cd $DOWNLOAD_DIR
     wget ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/diffs/gcc-core-*.diff.bz2
