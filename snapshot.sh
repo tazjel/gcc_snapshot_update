@@ -172,6 +172,7 @@ gcc_build()
     gpp=false
     gnat=false
     gfortran=false
+    extra=""
 
     langs=c
     shift 1
@@ -192,6 +193,7 @@ gcc_build()
                   exit
               fi
               langs+=",ada"
+              extra+=" --enable-libada "
               gnat=true
               # ada_dep_build         # Cloog anf PPL are for Ada
               ;;
@@ -242,8 +244,8 @@ gcc_build()
     ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
-      --disable-build-poststage1-with-cxx  --disable-build-with-cxx  \
-      --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
+      --disable-build-poststage1-with-cxx  --disable-build-with-cxx  --without-cloog --without-ppl \
+      --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX $extra
 
     make clean
     make -j 2
