@@ -27,7 +27,7 @@ Usage:
                               # (in addition, implies --gmp, --mpfr and --mpc)
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
   snapshot --openmpi          # Open MPI library
-  snapshot --lapack           # Lapack from Netlib
+  snapshot --lapack           # BLAS and Lapack  from Netlib
   snapshot --fftw             # Fast Fourier Transforms in the West
   snapshot --fgsl             # Fortran bindings to GNU Scientific Library
   snapshot --gmp              # GNU Multi-Precision library
@@ -35,14 +35,21 @@ Usage:
   snapshot --mpc              # Multi-Precision Complex arithmetic library (implies --gmp, --mpfr)
   snapshot --gdb              # GNU Debugger snapshot
   snapshot --d                # GCC-based D Compiler (GDC)
+  snapshot --ginac            # Builds GiNaC C++ symbolic library
+  snapshot --octave           # Octave
+  snapshot --python           # Python 2.x interpreter
+  snapshot --python3          # Python 3.x interpreter
+  snapshot --numpy            # Numpy
+  snapshot --scipy            # Scipy
 EOF
 exit 1
 }
 
 GCC_VERSION=4.7         # <= 4.7
-GDB_VERSION=7.2         # <= 7.2
+GDB_VERSION=7.3         # <= 7.3
 OPENMPI_VERSION=1.4     # <= 1.5
 GSL_VERSION=1.14        # <= 1.14
+PY_VERSION=2.7.2        # <= 2.7.2
 
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
@@ -59,6 +66,8 @@ GDB_PREFIX=$INSTALL_DIR/gdb          # ${GDB_PREFIX}/bin/gdb is the executable
 GMP_PREFIX=$INSTALL_DIR/gmp          # ${GMP_PREFIX}/lib/libgmp.a is the library
 MPFR_PREFIX=$INSTALL_DIR/mpfr        # ${MPFR_PREFIX}/lib/libmpfr.a is the library
 MPC_PREFIX=$INSTALL_DIR/mpc          # ${MPC_PREFIX}/lib/libmpc.a is the library
+CLOOG_PREFIX=$INSTALL_DIR/cloog      # ${CLOOG_PREFIX}/lib/libcloog.a is the library
+PPL_PREFIX=$INSTALL_DIR/ppl          # ${PPL_PREFIX}/lib/libppl.a is the library
 OMPI_PREFIX=$INSTALL_DIR/openmpi     # ${OMPI_PREFIX}/lib/libmpi.a is the library
                                      # ${OMPI_PREFIX}/bin/mpicc is the gcc wrapper
                                      
@@ -67,6 +76,9 @@ FGSL_PREFIX=$INSTALL_DIR/fgsl        # ${FGSL_PREFIX}/lib/libfgsl_xxx.a
 LAPACK_PREFIX=$INSTALL_DIR/lapack    # liblapack.a AND libblas.a go here
 FFTW_PREFIX=$INSTALL_DIR/fftw        # libfftw.a
 GDC_PREFIX=$INSTALL_DIR/d            # ${GDC_PREFIX}/bin/gdc (or gdmd)
+CLN_PREFIX=$INSTALL_DIR/cln          # ${CLN_PREFIX}/libcln.a is the library
+GINAC_PREFIX=$INSTALL_DIR/ginac      # ${GINAC_PREFIX}/libginac.a is the library
+PYTHON_PREFIX=$INSTALL_DIR/python    # ${PYTHON_PREFIX}/bin/python is the executable
 
 # Global variables
 GMP_INSTALLED=false
@@ -76,7 +88,11 @@ MPC_INSTALLED=false
 #-------------------------- FUNCTION DEFINITIONS ONLY ------------------------------
 # The actual script execution starts after all these definitions ! See below !
 
-gmp_build() {
+gmp_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $GMP_PREFIX/lib/libgmp.la; then
+          echo "GMP seems to be installed. To re-install, pass --force.";  return
+    fi
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -84,7 +100,7 @@ gmp_build() {
     tar --extract --overwrite --bzip2 --verbose --file gmp-*.tar.bz2
 
     cd gmp-*
-    ./configure --prefix=$GMP_PREFIX --enable-static --disable-shared
+    ./configure --prefix=$GMP_PREFIX --enable-static --disable-shared --enable-cxx
     make clean
     make -j 2
     make install
@@ -92,12 +108,16 @@ gmp_build() {
     rm -rf $DOWNLOAD_DIR/gmp-*.tar.bz2
     cd $PWD
 
-    GMP_INSTALLED=true
 }
 
-mpfr_build() {
-    if ! $GMP_INSTALLED; then gmp_build; fi
-    
+mpfr_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $MPFR_PREFIX/lib/libmpfr.la; then
+          echo "MPFR seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build     # MPFR requires GMP
+
     PWD=`pwd`
     cd $DOWNLOAD_DIR
     wget -N ftp://gcc.gnu.org/pub/gcc/infrastructure/mpfr-*.tar.bz2
@@ -111,13 +131,16 @@ mpfr_build() {
 
     rm -rf $DOWNLOAD_DIR/mpfr-*.tar.bz2
     cd $PWD
-
-    MPFR_INSTALLED=true
 }
 
-mpc_build() {
-    if ! $GMP_INSTALLED; then gmp_build; fi
-    if ! $MPFR_INSTALLED; then mpfr_build; fi
+mpc_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $MPC_PREFIX/lib/libmpc.la; then
+          echo "MPC seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build            # MPC requires GMP, MPFR    
+    mpfr_build
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -134,16 +157,55 @@ mpc_build() {
     rm -rf $DOWNLOAD_DIR/mpc-*.tar.gz
     cd $PWD
 
-    MPC_INSTALLED=true    
 }
 
-gcc_build() {
-    GMP_INSTALLED=true
-    MPFR_INSTALLED=true
-    MPC_INSTALLED=true
-    if ! $GMP_INSTALLED; then gmp_build; fi
-    if ! $MPFR_INSTALLED; then mpfr_build; fi
-    if ! $MPC_INSTALLED; then mpc_build; fi
+gcc_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' || test -z "$2" && test -e $GCC_PREFIX/bin/gcc; then
+        echo "GCC seems to be installed. "
+        echo "For example, to re-install C++, Ada and Fortran (C is built always): "
+        echo "          ./snapshot  --gcc --force c++ ada fortran "
+        echo "As of now, C, C++, Ada and Fortran are OK."
+        return
+    fi
+
+    gmp_build            # GCC requires GMP, MPFR and MPC 
+    mpfr_build
+    mpc_build
+
+    gpp=false
+    gnat=false
+    gfortran=false
+
+    langs=c
+    shift 1
+    until test -z "$1"; do
+      case "$1" in
+        c++ | C++ ) 
+              langs+=",c++"
+              gpp=true
+              ;;
+        ada | Ada | ADA )
+              gcc_vers=`gcc --version | head -n1 | cut -d' ' -f 3 | cut -c1-3`
+              gnat_vers=`gnatmake --version | head -n1 | cut -d' ' -f 2 | cut -c1-3`
+              if [ $gcc_vers != $gnat_vers ]; then
+                  echo "GCC and GNAT versions are not identical."
+                  echo "May be GNAT is not installed or a different version is installed."
+                  echo "GCC Version:" $gcc_vers
+                  echo "GNAT Version:" $gnat_vers
+                  exit
+              fi
+              langs+=",ada"
+              gnat=true
+              # ada_dep_build         # Cloog anf PPL are for Ada
+              ;;
+        fortran| Fortran | FORTRAN )
+              langs+=",fortran"
+              gfortran=true
+              ;;
+      esac
+      shift 1
+    done
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -154,46 +216,75 @@ gcc_build() {
     DATE=`cat /tmp/README.gcc | head -n 1 | cut -d' ' -f 2 | cut -d'-' -f 3`
 
     wget -N ftp://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_VERSION/gcc-$GCC_VERSION-$DATE.tar.bz2
-
     tar --extract --overwrite --bzip2 --verbose --file gcc-$GCC_VERSION-$DATE.tar.bz2
-    # tar --extract --overwrite --bzip2 --verbose --file gcc-fortran-$GCC_VERSION-$DATE.tar.bz2
-    # tar --extract --overwrite --bzip2 --verbose --file gcc-g++-$GCC_VERSION-$DATE.tar.bz2
 
     rm -rf gcc-$GCC_VERSION
     mv gcc-$GCC_VERSION-$DATE gcc-$GCC_VERSION
     cd gcc-$GCC_VERSION
 
-    # Remove everything except C, C++ and Fortran (saves ~600 MB disk space)
-    rm -rf gnattools libada libgo libjava libobjc gcc/ada gcc/go gcc/java gcc/objc gcc/objcp gcc/testsuite
+    # Remove everything except C, C++, Ada and Fortran (saves ~600 MB disk space)
+    rm -rf boehm-gc libgo libjava libobjc libffi libitm
+    rm -rf gcc/go gcc/java gcc/objc gcc/objcp
+    rm -rf gcc/testsuite
+    # rm -rf gnattools libada  gcc/ada       # Ada
 
     mkdir -p build
     cd build
    
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
-    ../configure --prefix=$GCC_PREFIX --enable-languages=c,fortran  --disable-multilib --disable-multiarch \
+    # export LDFLAGS="-L$GMP_PREFIX/lib -lstdc++"       # Else ClooG fails to link libgmpxx
+    ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
-      --disable-build-poststage1-with-cxx   \
+      --disable-build-poststage1-with-cxx  --disable-build-with-cxx  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
+      # --with-ppl=$PPL_PREFIX --with-cloog=$CLOOG_PREFIX
 
     make clean
-    make -j 1
+    make -j 2
     make install
+    make distclean
+
+    # export LDFLAGS=
 
     mkdir -p $SYMLINK_BIN
     ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/gcc
+    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/cc
     ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
     ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
-    ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
-    # ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/g++
+
+    if [ $gfortran == true ]; then
+      ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
+    fi
+
+    if [ $gpp == true ]; then
+      ln -sfn $GCC_PREFIX/bin/g++ $SYMLINK_BIN/g++
+      ln -sfn $GCC_PREFIX/bin/c++ $SYMLINK_BIN/c++
+    fi
+
+    if [ $gnat == true ]; then
+      ln -sfn $GCC_PREFIX/bin/gnat $SYMLINK_BIN/gnat
+      ln -sfn $GCC_PREFIX/bin/gnatbind $SYMLINK_BIN/gnatbind
+      ln -sfn $GCC_PREFIX/bin/gnatchop $SYMLINK_BIN/gnatchop
+      ln -sfn $GCC_PREFIX/bin/gnatclean $SYMLINK_BIN/gnatclean
+      ln -sfn $GCC_PREFIX/bin/gnatfind $SYMLINK_BIN/gnatfind
+      ln -sfn $GCC_PREFIX/bin/gnatkr $SYMLINK_BIN/gnatkr
+      ln -sfn $GCC_PREFIX/bin/gnatlink $SYMLINK_BIN/gnatlink
+      ln -sfn $GCC_PREFIX/bin/gnatls $SYMLINK_BIN/gnatls
+      ln -sfn $GCC_PREFIX/bin/gnatmake $SYMLINK_BIN/gnatmake
+      ln -sfn $GCC_PREFIX/bin/gnatname $SYMLINK_BIN/gnatname
+      ln -sfn $GCC_PREFIX/bin/gnatprep $SYMLINK_BIN/gnatprep
+      ln -sfn $GCC_PREFIX/bin/gnatxref $SYMLINK_BIN/gnatxref
+    fi
 
     rm -rf $DOWNLOAD_DIR/gcc-core-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-fortran-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-testsuite-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-g++-*.tar.bz2
+    rm -rf $DOWNLOAD_DIR/gcc-$GCC_VERSION-$DATE.tar.bz2
+
     cd $PWD
 
-    GCC_INSTALLED=true
 }
 
 gcc_update() {
@@ -214,22 +305,28 @@ gcc_update() {
     cd $PWD
 }
 
-gdb_build() {
-    if ! $GMP_INSTALLED; then gmp_build; fi
-    if ! $MPFR_INSTALLED; then mpfr_build; fi
-    if ! $MPC_INSTALLED; then mpc_build; fi
+gdb_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $GDB_PREFIX/bin/gdb; then
+          echo "GDB seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build            # GDB requires GMP, MPFR and MPC 
+    mpfr_build
+    mpc_build
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
-    wget -N ftp://gcc.gnu.org/pub/gdb/snapshots/current/gdb.tar.bz2
+    wget -N --retr-symlinks ftp://gcc.gnu.org/pub/gdb/snapshots/current/gdb.tar.bz2
     tar --extract --overwrite --bzip2 --verbose --file gdb.tar.bz2
 
     rm -rf gdb-$GDB_VERSION
-    mv gdb-$GDB_VERSION* gdb-$GDB_VERSION
+    mv -f gdb-$GDB_VERSION* gdb-$GDB_VERSION
     cd gdb-$GDB_VERSION
 
-    ./configure --prefix=$GDB_PREFIX --enable-languages=c,fortran --disable-bootstrap \
-      --enable-libquadmath --enable-libquadmath-support --disable-libssp  \
+    ./configure --prefix=$GDB_PREFIX --enable-languages=c,fortran,c++,python --disable-bootstrap \
+      --enable-libquadmath --enable-libquadmath-support --disable-libssp  --with-python \
+        --disable-build-poststage1-with-cxx  --disable-build-with-cxx  \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX
 
     make clean
@@ -247,7 +344,11 @@ gdb_build() {
     GDB_INSTALLED=true
 }
 
-openmpi_build() {
+openmpi_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $OMPI_PREFIX/bin/mpicc; then
+          echo "OpenMPI seems to be installed. To re-install, pass --force.";  return
+    fi
 
     PWD=`pwd`
     cd $DOWNLOAD_DIR
@@ -261,7 +362,7 @@ openmpi_build() {
     # Passed to CFLAGS to enable 128-bit (16-byte) reals in C programs, 
     # which in turn enables REAL*16 support for F90 and F77 (libquadmath!)
     LONG_DOUBLE=-m128bit-long-double
-    MAX_ARRAY_DIM=3    # max 3D arrays are supported, can be up to 7
+    MAX_ARRAY_DIM=2    # max 2D arrays are supported, can be up to 7
     ./configure --prefix=$OMPI_PREFIX --enable-static --disable-shared \
             --disable-mpi-cxx --disable-mpi-cxx-seek --enable-mpi-threads \
             --without-memory-manager --without-libnuma  \
@@ -290,7 +391,8 @@ openmpi_build() {
     OPENMPI_INSTALLED=true
 }
 
-fgsl_build() {
+fgsl_build() 
+{
 
     PWD=`pwd`
     
@@ -321,7 +423,11 @@ fgsl_build() {
     FGSL_INSTALLED=true
 }
 
-lapack_build() {
+lapack_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $LAPACK_PREFIX/lib/liblapack.a; then
+          echo "LAPACK seems to be installed. To re-install, pass --force.";  return
+    fi
 
     PWD=`pwd`
     
@@ -336,11 +442,11 @@ lapack_build() {
     echo '# Generated by "snapshot" script. ' >> make.inc
     echo 'SHELL     = /bin/sh' >> make.inc
     echo 'FORTRAN   = gfortran' >> make.inc
-    echo 'OPTS      = -O2 -ggdb -mtune=pentium4' >> make.inc
+    echo 'OPTS      = -O3 -march=native -funroll-loops -fPIC' >> make.inc
     echo 'DRVOPTS   = $(OPTS)' >> make.inc
-    echo 'NOOPT     = -O0' >> make.inc
+    echo 'NOOPT     = -O0 -ggdb -fPIC' >> make.inc
     echo 'LOADER    = gfortran' >> make.inc
-    echo 'LOADOPTS  = -O2 -ggdb -mtune=pentium4' >> make.inc
+    echo 'LOADOPTS  = -O3 -march=native -funroll-loops -fPIC' >> make.inc
     echo 'TIMER     = INT_ETIME' >> make.inc
     echo 'ARCH      = ar' >> make.inc
     echo 'ARCHFLAGS = cr' >> make.inc
@@ -366,7 +472,11 @@ lapack_build() {
     LAPACK_INSTALLED=true
 }
 
-fftw_build() {
+fftw_build() 
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $FFTW_PREFIX/lib/libfftw3.la; then
+          echo "FFTW seems to be installed. To re-install, pass --force.";  return
+    fi
 
     PWD=`pwd`
     
@@ -399,14 +509,23 @@ fftw_build() {
 
 gdc_build()
 {
+    if test -z "$1" || ! test "$1" == '--force' && test -e $GDC_PREFIX/bin/gdc; then
+          echo "GDC seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build            # GDC requires GMP, MPFR and MPC 
+    mpfr_build
+    mpc_build
+
     PWD=`pwd`
-    GCC_BASE=4.6.1   # GCC version used to build D
+    GCC_BASE=4.6.2   # GCC version used to build D
 
     cd $DOWNLOAD_DIR
+    rm -rf goshawk-gdc-* gdc
     
     wget -N  https://bitbucket.org/goshawk/gdc/get/tip.tar.gz  -O gdc.tar.gz
     tar --extract --overwrite --gzip --verbose --file gdc.tar.gz
-    mv goshawk-gdc-tip gdc
+    mv  goshawk-gdc-* gdc
     mkdir gdc/dev
     cd gdc/dev
 
@@ -424,7 +543,7 @@ gdc_build()
 
     mkdir objdir
     cd objdir 
-    ../configure --prefix=$GDC_PREFIX --enable-languages=d \
+    ../configure --prefix=$GDC_PREFIX --enable-languages=d --disable-multiarch \
                  --disable-multilib --disable-shared --enable-checking=release \
                  --disable-bootstrap --disable-nls --disable-libgomp --enable-static \
                  --disable-decimal-float --with-system-zlib --disable-libmudflap \
@@ -443,6 +562,219 @@ gdc_build()
     GDC_INSTALLED=true
 }
 
+cln_build()
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $GMP_PREFIX/lib/libcln.la; then
+          echo "CLN seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build        # CLN requires GMP
+
+    PWD=`pwd`
+    cd $DOWNLOAD_DIR
+    wget --no-remove-listing ftp://ftpthep.physik.uni-mainz.de/pub/gnu/
+  
+    # The last 3rd line in the ".listing" file is the latest one, download that
+    CLN_BASE=`cat .listing | tail -n3 | head -n1 | cut -c57-`
+    CLN_VERSION=`echo $CLN_BASE | cut -c5-9`
+    wget -N ftp://ftpthep.physik.uni-mainz.de/pub/gnu/$CLN_BASE
+    tar --extract --overwrite --bzip2 --verbose --file $CLN_BASE
+    rm -rf .listing index.html
+
+    cd cln-$CLN_VERSION
+    ./configure --prefix=$CLN_PREFIX --with-gmp=$GMP_PREFIX   --with-pic  \
+                --enable-static --disable-shared --disable-dependency-tracking
+    make -j2
+    make install
+
+    rm -rf $DOWNLOAD_DIR/$CLN_BASE
+
+    cd $PWD
+    CLN_INSTALLED=true
+}
+
+ginac_build()
+{
+    cln_build             # GiNaC requires CLN
+
+    PWD=`pwd`
+
+    export CLN_LIBS="-L$CLN_PREFIX/lib -lcln"
+    export CLN_CFLAGS="-I$CLN_PREFIX/include "
+
+
+    cd $DOWNLOAD_DIR
+    wget --no-remove-listing ftp://ftpthep.physik.uni-mainz.de/pub/GiNaC/
+  
+    # The last 3rd line in the ".listing" file is the latest one, download that
+    # -rw-r--r--    1 1024     102       1048764 Nov  6 13:20 ginac-1.6.2.tar.bz2
+    GINAC_BASE=`cat .listing | tail -n3 | head -n1 | cut -c57-`
+    GINAC_VERSION=`echo $GINAC_BASE | cut -c7-11`
+  
+    wget -N ftp://ftpthep.physik.uni-mainz.de/pub/GiNaC/$GINAC_BASE
+    tar --extract --overwrite --bzip2 --verbose --file $GINAC_BASE
+    rm -rf .listing index.html
+
+    cd ginac-$GINAC_VERSION
+    ./configure --prefix=$GINAC_PREFIX --disable-dependency-tracking \
+                --with-pic --enable-static --disable-shared 
+    make -j2
+    make install
+
+    rm -rf $DOWNLOAD_DIR/$GINAC_BASE
+    cd $PWD
+
+    GINAC_INSTALLED=true
+}
+
+octave_build()
+{
+
+#export CXXFLAGS="-I/home/bdsatish/foss/installed/fftw/include"
+#export CFLAGS="-I/home/bdsatish/foss/installed/fftw/include"
+#export LDFLAGS="-L/home/bdsatish/foss/installed/fftw/lib"
+# --disable-shared --disable-dl --enable-static 
+./configure --prefix=$HOME/foss/installed/octave   --with-pic \
+  --with-blas="-L/home/bdsatish/foss/installed/lapack -lblas" --with-lapack="-L/home/bdsatish/foss/installed/lapack -llapack" 
+#  --without-amd --without-camd --without-colamd  --without-ccolamd --without-cholmod  --without-cxsparse  --without-umfpack  \
+#  --without-hdf5
+}
+
+python_build()
+{
+    PWD=`pwd`
+    cd $DOWNLOAD_DIR
+
+    wget -N http://www.python.org/ftp/python/$PY_VERSION/Python-$PY_VERSION.tgz
+    tar --extract --overwrite --gzip --verbose --file Python-$PY_VERSION.tgz
+    cd Python-$PY_VERSION
+  
+    ./configure --prefix=$PYTHON_PREFIX --with-threads --enable-static --disable-shared --with-fpectl 
+    make -j2
+    make install
+
+    rm -rf $DOWNLOAD_DIR/Python-$PY_VERSION $DOWNLOAD_DIR/Python-$PY_VERSION.tgz
+    cd $PWD
+
+    PYTHON_INSTALLED=true
+
+}
+
+numpy_build()
+{
+    PWD=`pwd`
+    cd $DOWNLOAD_DIR
+
+    wget -N http://sourceforge.net/projects/numpy/files/latest/download
+    mv download numpy.tar.gz
+    tar --extract --overwrite --gzip --verbose --file numpy.tar.gz
+    
+    cd numpy-*
+
+    # Python version of where to find Python.h
+    py_vers=`echo $PY_VERSION | cut -c1-3`
+    echo $py_vers
+    cat > site.cfg <<_EOF
+[DEFAULT]
+library_dirs = $PYTHON_PREFIX/lib:$LAPACK_PREFIX:$FFTW_PREFIX/lib
+include_dirs = $PYTHON_PREFIX/include/python$py_vers:$FFTW_PREFIX/include
+search_static_first = 1
+
+[blas_opt]
+libraries = blas
+
+[lapack_opt]
+libraries = lapack
+
+[fftw]
+libraries = fftw3
+
+_EOF
+
+    python setup.py build
+    python setup.py install --prefix $PYTHON_PREFIX
+    rm -rf $DOWNLOAD_DIR/numpy.at.gz $DOWNLOAD_DIR/numpy-*
+    cd $PWD
+
+    NUMPY_INSTALLED=true
+}
+
+scipy_build()
+{
+    PWD=`pwd`
+
+    cd $DOWNLOAD_DIR
+
+    wget -N http://sourceforge.net/projects/scipy/files/latest/download
+    mv download scipy.tar.gz
+    tar --extract --overwrite --gzip --verbose --file scipy.tar.gz
+    
+    cd scipy-*
+
+    python setup.py build
+    python setup.py install --prefix $PYTHON_PREFIX
+    rm -rf $DOWNLOAD_DIR/scipy.tar.gz $DOWNLOAD_DIR/scipy-*
+
+    cd $PWD
+
+    SCIPY_INSTALLED=true
+
+}
+
+# ada_dep_build: Builds PPL and ClooG libraries
+ada_dep_build()
+{
+    # if PPL is already installed, just return (unless you pass --force, 
+    # in which case, I'll silently install)
+    if test -z "$1" || ! test "$1" == '--force' && test -e $PPL_PREFIX/lib/libppl.la; then
+          echo "PPL seems to be installed."
+    else      # Forcing install ...
+      PWD=`pwd`
+      cd $DOWNLOAD_DIR
+      wget -N ftp://gcc.gnu.org/pub/gcc/infrastructure/ppl-0.11.tar.gz
+      tar --extract --overwrite --gzip --verbose --file ppl-0.11.tar.gz
+      rm -rf ppl
+      mv ppl-0.11 ppl
+
+      gmp_options="-I$GMP_PREFIX/include -L$GMP_PREFIX/lib"
+      cd ppl
+      ./configure --prefix=$PPL_PREFIX --with-pic --with-cflags="$gmp_options"  \
+                  --with-cxxflags="$gmp_options" --enable-static --disable-shared
+      make -j2
+      make install
+      # rm -rf $DOWNLOAD_DIR/ppl-0.11.tar.gz
+
+      cd $PWD
+    fi
+
+    # if Cloog is already installed, just return (unless you pass --force, 
+    # in which case, I'll silently install)
+    if test -z "$1" || ! test "$1" == '--force' && test -e $CLOOG_PREFIX/lib/libcloog.la; then
+          echo "CLOOG seems to be installed."
+    else      # Forcing install ...
+      PWD=`pwd`
+      cd $DOWNLOAD_DIR
+      wget -N ftp://gcc.gnu.org/pub/gcc/infrastructure/cloog-ppl-0.15.11.tar.gz
+      tar --extract --overwrite --gzip --verbose --file cloog-ppl-0.15.11.tar.gz
+      rm -rf cloog-ppl
+      mv cloog-ppl-0.15.11 cloog-ppl
+
+      cd cloog-ppl
+      export LDFLAGS="-lm"
+      ./configure --prefix=$CLOOG_PREFIX --with-pic --enable-static --disable-shared \
+                  --with-gmp="$GMP_PREFIX"  --with-ppl=$PPL_PREFIX
+
+      make -j2
+      make install
+
+      export LDFLAGS=
+      cd $PWD
+      CLOOG_PPL_INSTALLED=true
+
+    # rm -rf $DOWNLOAD_DIR/cloog-ppl-0.15.11.tar.gz
+    fi
+
+}
 
 
 #------------------------- EXECUTION STARTS HERE --------------------------
@@ -450,29 +782,66 @@ gdc_build()
 #  Issue usage if no parameters are given.
 test $# -eq 0 && usage
 
+# For 64-bit machines, "-fPIC" is the magic solution :-)
+machine=`uname -m`
+if [ $machine == x86_64 ]; then 
+  export CFLAGS=" -fPIC "
+  export CXXFLAGS=" -fPIC "
+  export FFLAGS=" -fPIC "
+  export FCFLAGS=" -fPIC "
+  export FCFLAGS_f90=" -fPIC "
+  export FCFLAGS_F90=" -fPIC "
+fi
+
 if [[ $1 == '--gcc' ]]; then
-    gcc_build
+    gcc_build $2 $3 $4 $5 $6 $7
 elif [ $1 == '--update' ]; then
-    gcc_update
+    gcc_update $2
 elif [ $1 == '--gdb' ]; then
-    gdb_build
+    gdb_build $2
 elif [ $1 == '--openmpi' ]; then
-    openmpi_build
+    openmpi_build $2
 elif [ $1 == '--gmp' ]; then
-    gmp_build
+    gmp_build $2
 elif [ $1 == '--mpfr' ]; then
-    mpfr_build
+    mpfr_build $2
 elif [ $1 == '--mpc' ]; then
-    mpc_build
+    mpc_build $2
 elif [ $1 == '--fgsl' ]; then
-    fgsl_build
+    fgsl_build $2
 elif [ $1 == '--lapack' ]; then
-    lapack_build
+    lapack_build $2
 elif [ $1 == '--fftw' ]; then
-    fftw_build
+    fftw_build $2
 elif [ $1 == '--d' ]; then
-    gdc_build
+    gdc_build $2 
+elif [ $1 == '--ginac' ]; then
+    ginac_build $2
+elif [ $1 == '--octave' ]; then
+    octave_build $2
+elif [ $1 == '--python' ]; then
+    python_build $2
+elif [ $1 == '--numpy' ]; then
+    numpy_build $2
+elif [ $1 == '--scipy' ]; then
+    scipy_build $2
+elif [ $1 == '--ipython' ]; then
+    easy_install ipython[zmq]
+elif [ $1 == '--matplotlib' ]; then
+    pip install matplotlib
+    echo "Replace backend_qt4.py if u encounter any error"
+elif [ $1 == '--ada-dep' ]; then
+    ada_dep_build $2
+elif [ $1 == '--pyqt4' ]; then
+    echo apt-get install libqt4-dev libqt4-gui
+    echo Download SIP first and install it:
+    echo [1] python configure.py
+    echo [2] make 
+    echo [3] make install
+    echo Repeat [1]-[3] for PyQt4
 else
+    echo 'Unrecognized option: "$1"'
+    echo ""
     usage
 fi
 
