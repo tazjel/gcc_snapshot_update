@@ -243,9 +243,9 @@ gcc_build()
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
     ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
       --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
-      --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  \
+      --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  --disable-libitm \
       --disable-build-poststage1-with-cxx  --disable-build-with-cxx  --without-cloog --without-ppl \
-      --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX $extra
+      --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX $extra 
 
     make clean
     make -j 2
