@@ -242,10 +242,13 @@ gcc_build()
    
     # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
     ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
-      --enable-checking=release --disable-libmudflap --enable-libgomp --disable-bootstrap \
+      --enable-checking=runtime --disable-libmudflap --enable-libgomp --disable-bootstrap \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  --disable-libitm \
       --disable-build-poststage1-with-cxx  --disable-build-with-cxx  --without-cloog --without-ppl \
+      --disable-nls --enable-threads --enable-__cxa_atexit \
       --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX $extra 
+    # For ClooG and PPL
+    # --with-host-libstdcxx="Wl,-Bstatic,-lstdc++,-Bdynamic -lm" --with-ppl=$PPL_PREFIX --with-cloog=$CLOOG_PREFIX
 
     make clean
     make -j 2
