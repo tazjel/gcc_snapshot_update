@@ -45,7 +45,7 @@ EOF
 exit 1
 }
 
-GCC_VERSION=4.7         # <= 4.7
+GCC_VERSION=4.8         # <= 4.8
 GDB_VERSION=7.3         # <= 7.3
 OPENMPI_VERSION=1.4     # <= 1.5
 GSL_VERSION=1.14        # <= 1.14
@@ -58,8 +58,8 @@ SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here
 # Installation directories, change them if needed.
 # These are just passed to --prefix of corresponding 'configure' script
 
-INSTALL_DIR=/home/bdsatish/foss/installed
-DOWNLOAD_DIR=/home/bdsatish/foss
+INSTALL_DIR=$HOME/foss/installed
+DOWNLOAD_DIR=$HOME/foss
 
 GCC_PREFIX=$INSTALL_DIR/gcc          # ${GCC_PREFIX}/bin/gcc is the executable
 GDB_PREFIX=$INSTALL_DIR/gdb          # ${GDB_PREFIX}/bin/gdb is the executable
@@ -640,12 +640,12 @@ ginac_build()
 octave_build()
 {
 
-#export CXXFLAGS="-I/home/bdsatish/foss/installed/fftw/include"
-#export CFLAGS="-I/home/bdsatish/foss/installed/fftw/include"
-#export LDFLAGS="-L/home/bdsatish/foss/installed/fftw/lib"
+#export CXXFLAGS="-I$HOME/foss/installed/fftw/include"
+#export CFLAGS="-I$HOME/foss/installed/fftw/include"
+#export LDFLAGS="-L$HOME/foss/installed/fftw/lib"
 # --disable-shared --disable-dl --enable-static 
 ./configure --prefix=$HOME/foss/installed/octave   --with-pic \
-  --with-blas="-L/home/bdsatish/foss/installed/lapack -lblas" --with-lapack="-L/home/bdsatish/foss/installed/lapack -llapack" 
+  --with-blas="-L$HOME/foss/installed/lapack -lblas" --with-lapack="-L$HOME/foss/installed/lapack -llapack" 
 #  --without-amd --without-camd --without-colamd  --without-ccolamd --without-cholmod  --without-cxsparse  --without-umfpack  \
 #  --without-hdf5
 }
