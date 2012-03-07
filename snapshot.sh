@@ -806,7 +806,7 @@ emacs_build()
     make -j2
     make install
 
-    rm -rf $DOWNLOAD_DIR/emacs-$EMACS_VERSION
+    rm -rf $DOWNLOAD_DIR/emacs-$EMACS_VERSION.tar.bz2
     cd $PWD
 
     EMACS_INSTALLED=true
