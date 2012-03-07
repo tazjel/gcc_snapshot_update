@@ -26,6 +26,7 @@ Usage:
   snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
                               # (in addition, implies --gmp, --mpfr and --mpc)
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
+  snapshot --emacs            # install Emacs editor
   snapshot --openmpi          # Open MPI library
   snapshot --lapack           # BLAS and Lapack  from Netlib
   snapshot --fftw             # Fast Fourier Transforms in the West
@@ -50,6 +51,7 @@ GDB_VERSION=7.3         # <= 7.3
 OPENMPI_VERSION=1.4     # <= 1.5
 GSL_VERSION=1.14        # <= 1.14
 PY_VERSION=2.7.2        # <= 2.7.2
+EMACS_VERSION=23.4      # <= 23.4
 
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
@@ -79,6 +81,7 @@ GDC_PREFIX=$INSTALL_DIR/d            # ${GDC_PREFIX}/bin/gdc (or gdmd)
 CLN_PREFIX=$INSTALL_DIR/cln          # ${CLN_PREFIX}/libcln.a is the library
 GINAC_PREFIX=$INSTALL_DIR/ginac      # ${GINAC_PREFIX}/libginac.a is the library
 PYTHON_PREFIX=$INSTALL_DIR/python    # ${PYTHON_PREFIX}/bin/python is the executable
+EMACS_PREFIX=$INSTALL_DIR/emacs      # ../bin/emacs
 
 # Global variables
 GMP_INSTALLED=false
@@ -786,6 +789,29 @@ ada_dep_build()
 
 }
 
+emacs_build()
+{
+    PWD=`pwd`
+
+    cd $DOWNLOAD_DIR  
+    wget -N  ftp://ftp.gnu.org/gnu/emacs/emacs-$EMACS_VERSION.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file emacs-$EMACS_VERSION.tar.bz2
+
+    # aptitude install libxft2 libxft2-dev libxaw7-dev libjpeg62-dev libgif-dev libtiff4-dev libxaw3dxft6 libxaw7-dev libxaw7
+    # NO POINT installing Xaw3d -- even if it is present, configure says 'no'
+    # If you don't want image support: -with-xpm=no --with-jpeg=no --with-gif=no --with-tiff=no
+    cd emacs-$EMACS_VERSION
+    ./configure --prefix=$EMACS_PREFIX  \
+                --with-x --with-x-tookit=athena  --with-xft  --with-dbus
+    make -j2
+    make install
+
+    rm -rf $DOWNLOAD_DIR/emacs-$EMACS_VERSION
+    cd $PWD
+
+    EMACS_INSTALLED=true
+}
+
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -809,6 +835,8 @@ elif [ $1 == '--update' ]; then
     gcc_update $2
 elif [ $1 == '--gdb' ]; then
     gdb_build $2
+elif [ $1 == '--emacs' ]; then
+    emacs_build $2
 elif [ $1 == '--openmpi' ]; then
     openmpi_build $2
 elif [ $1 == '--gmp' ]; then
