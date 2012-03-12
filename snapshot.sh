@@ -15,44 +15,49 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
     
-# This shell script fetches the latest GCC snapshot and builds the GCC compiler itself.
-# Latest version can be found at: https://github.com/bdsatish/gcc_snapshot_update/
+# This shell script fetches the source code of various software packages and
+# automates the download-compile-install cycle. Latest version can be found at:
+# https://github.com/bdsatish/gcc_snapshot_update/
+#
+# List of supported software is immediately below, see usage() function
 
 set -e
 
 usage() {
 cat <<EOF
 Usage:
-  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
-                              # (in addition, implies --gmp, --mpfr and --mpc)
-  snapshot --update           # Fetch and apply patch to existing GCC snapshot
+  snapshot --d                # GCC-based D Compiler (GDC)
   snapshot --emacs            # install Emacs editor
-  snapshot --openmpi          # Open MPI library
-  snapshot --lapack           # BLAS and Lapack  from Netlib
   snapshot --fftw             # Fast Fourier Transforms in the West
   snapshot --fgsl             # Fortran bindings to GNU Scientific Library
-  snapshot --gmp              # GNU Multi-Precision library
-  snapshot --mpfr             # Multi-Precision Floating Point library (implies --gmp)
-  snapshot --mpc              # Multi-Precision Complex arithmetic library (implies --gmp, --mpfr)
+  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
   snapshot --gdb              # GNU Debugger snapshot
-  snapshot --d                # GCC-based D Compiler (GDC)
   snapshot --ginac            # Builds GiNaC C++ symbolic library
+  snapshot --gmp              # GNU Multi-Precision library
+  snapshot --lapack           # BLAS and Lapack  from Netlib
+  snapshot --llvm             # LLVM with Clang compilers
+  snapshot --mpc              # Multi-Precision Complex arithmetic library
+  snapshot --mpfr             # Multi-Precision Floating Point library
+  snapshot --numpy            # Numpy
   snapshot --octave           # Octave
+  snapshot --openmpi          # Open MPI library
   snapshot --python           # Python 2.x interpreter
   snapshot --python3          # Python 3.x interpreter
-  snapshot --numpy            # Numpy
   snapshot --scipy            # Scipy
+  snapshot --update           # Fetch and apply patch to existing GCC snapshot
 EOF
 exit 1
 }
 
+# For those software whose versions are not given below, it means that their 
+# latest versions are determined automatically.
 GCC_VERSION=4.8         # <= 4.8
 GDB_VERSION=7.3         # <= 7.3
 OPENMPI_VERSION=1.4     # <= 1.5
 GSL_VERSION=1.14        # <= 1.14
 PY_VERSION=2.7.2        # <= 2.7.2
 EMACS_VERSION=23.4      # <= 23.4
-
+LLVM_VERSION=3.0        # >= 3.0
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
 SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here 
@@ -82,6 +87,7 @@ CLN_PREFIX=$INSTALL_DIR/cln          # ${CLN_PREFIX}/libcln.a is the library
 GINAC_PREFIX=$INSTALL_DIR/ginac      # ${GINAC_PREFIX}/libginac.a is the library
 PYTHON_PREFIX=$INSTALL_DIR/python    # ${PYTHON_PREFIX}/bin/python is the executable
 EMACS_PREFIX=$INSTALL_DIR/emacs      # ../bin/emacs
+LLVM_PREFIX=$INSTALL_DIR/llvm        # LLVM / Clang
 
 # Global variables
 GMP_INSTALLED=false
@@ -812,6 +818,36 @@ emacs_build()
     EMACS_INSTALLED=true
 }
 
+llvm_build()
+{
+		PWD=`pwd`
+
+		cd $DOWNLOAD_DIR
+		wget -N http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.tar.gz
+		wget -N http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.tar.gz
+
+    tar --extract --overwrite --gzip --verbose --file llvm-$LLVM_VERSION.tar.gz
+    tar --extract --overwrite --gzip --verbose --file clang-$LLVM_VERSION.tar.gz
+
+		# clang dir must go into LLVM_SRC_DIR/tools/clang
+		mv clang-$LLVM_VERSION.src/ llvm-$LLVM_VERSION.src/tools/clang
+
+		cd llvm-$LLVM_VERSION.src
+		./configure --prefix=$LLVM_PREFIX --enable-targets=host --enable-optimized \
+				        --enable-pthreads --enable-pic --disable-docs --disable-shared
+		make -j4
+		make install
+
+		# clang is automatically built, but not installed. We do it specifically:
+		cd tools/clang
+		make install
+
+		rm -rf  $DOWNLOAD_DIR/llvm-$LLVM_VERSION.tar.gz $DOWNLOAD_DIR/clang-$LLVM_VERSION.tar.gz
+    cd $PWD
+
+    LLVM_INSTALLED=true
+}
+
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -855,6 +891,8 @@ elif [ $1 == '--d' ]; then
     gdc_build $2 
 elif [ $1 == '--ginac' ]; then
     ginac_build $2
+elif [ $1 == '--llvm' ]; then
+		llvm_build $2
 elif [ $1 == '--octave' ]; then
     octave_build $2
 elif [ $1 == '--python' ]; then
