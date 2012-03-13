@@ -58,6 +58,7 @@ GSL_VERSION=1.14        # <= 1.14
 PY_VERSION=2.7.2        # <= 2.7.2
 EMACS_VERSION=23.4      # <= 23.4
 LLVM_VERSION=3.0        # >= 3.0
+BOOST_VERSION=1.49.0    # like 1.xx.0 where xx=31 to 49
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
 SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here 
@@ -846,6 +847,47 @@ llvm_build()
     cd $PWD
 
     LLVM_INSTALLED=true
+}
+
+boost_build()
+{
+		PWD=`pwd`
+
+		cd $DOWNLOAD_DIR
+
+		# string replace 1.49.0 --> 1_49_0
+    DIRNAME=boost_${BOOST_VERSION//./_}
+		wget -N http://sourceforge.net/projects/boost/files/boost/$BOOST_VERSION/$DIRNAME.tar.bz2/download
+    tar --extract --overwrite --bzip2 --verbose --file $DIRNAME.tar.bz2
+
+		cd $DIRNAME
+		./boostrap.sh --prefix=$BOOST_PREFIX
+
+		# OpenMPI support added, if mpic++ exists
+		if [ -x $OMPI_PREFIX/bin/mpic++ ]; then
+				echo "using mpi : $OMPI_PREFIX/bin/mpic++ ;" >> tools/build/v2/user-config.jam
+		fi
+
+		# Compile and install (b2 is same as bjam)
+		./b2 link=static  runtime-link=static install
+
+		# Boost.Build separately
+		cd tools/build/v2
+		./bootstrap.sh
+		./b2 install --prefix=$BOOST_PREFIX
+
+		# Download and install the PDF documentation
+		# Stupid guys: instead of naming it as boost_1_49_0_pdf they just say boost_1_49_pdf !
+		DOC=${DIRNAME:0:10}_pdf      # extract first 10 char from DIRNAME
+		http://sourceforge.net/projects/boost/files/boost-docs/$BOOST_VERSION/$DOC.zip/download
+		unzip $DOC
+		mv $DOC/ $BOOST_PREFIX/pdf
+		rm -rf $DOC.zip
+
+		rm -rf  $DOWNLOAD_DIR/$DIRNAME.tar.bz2
+    cd $PWD
+
+    BOOST_INSTALLED=true
 }
 
 
