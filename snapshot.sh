@@ -28,6 +28,7 @@ cat <<EOF
 Usage:
   snapshot --d                # GCC-based D Compiler (GDC)
   snapshot --emacs            # install Emacs editor
+  snapshot --lisp             # ECL -- embeddable common lisp
   snapshot --fftw             # Fast Fourier Transforms in the West
   snapshot --fgsl             # Fortran bindings to GNU Scientific Library
   snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
@@ -89,6 +90,8 @@ GINAC_PREFIX=$INSTALL_DIR/ginac      # ${GINAC_PREFIX}/libginac.a is the library
 PYTHON_PREFIX=$INSTALL_DIR/python    # ${PYTHON_PREFIX}/bin/python is the executable
 EMACS_PREFIX=$INSTALL_DIR/emacs      # ../bin/emacs
 LLVM_PREFIX=$INSTALL_DIR/llvm        # LLVM / Clang
+ECL_PREFIX=$INSTALL_DIR/ecl          # Embeddable common lisp
+BOEHM_PREFIX=$INSTALL_DIR/boehmgc    # ./lib/libgc.a
 
 # Global variables
 GMP_INSTALLED=false
@@ -538,12 +541,12 @@ gdc_build()
     mpc_build
 
     PWD=`pwd`
-    GCC_BASE=4.6.2   # GCC version used to build D
+    GCC_BASE=4.6.3   # GCC version used to build D
 
     cd $DOWNLOAD_DIR
     rm -rf goshawk-gdc-* gdc
     
-    wget -N  https://bitbucket.org/goshawk/gdc/get/tip.tar.gz  -O gdc.tar.gz
+    wget https://bitbucket.org/goshawk/gdc/get/default.tar.gz -O gdc.tar.gz
     tar --extract --overwrite --gzip --verbose --file gdc.tar.gz
     mv  goshawk-gdc-* gdc
     mkdir gdc/dev
@@ -890,6 +893,75 @@ boost_build()
     BOOST_INSTALLED=true
 }
 
+boehm_build()
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $BOEHM_PREFIX/lib/libgc.a; then
+          echo "Boehm seems to be installed. To re-install, pass --force.";  return
+    fi
+
+		PWD=`pwd`
+
+		cd $DOWNLOAD_DIR
+
+    rm -rf boehmgc
+    wget -N https://github.com/ivmai/bdwgc/zipball/master
+    mv master boehm.zip
+    unzip boehm.zip
+    mv -f ivmai-*  boehmgc
+
+    wget -N https://github.com/ivmai/libatomic_ops/zipball/master
+    mv master libatomic_ops.zip
+    unzip libatomic_ops.zip
+    mv -f ivmai-*  boehmgc/libatomic_ops
+    ./boehmgc/libatomic_ops/autogen.sh
+
+    cd boehmgc
+    ./autogen.sh
+    ./configure --prefix=$BOEHM_PREFIX --with-pic --disable-gcj-support --enable-cplusplus \
+                --disable-dependency-tracking --enable-static --disable-shared
+    
+    make -j4
+    make install
+
+		rm -rf  $DOWNLOAD_DIR/ivmai-*.zip
+    cd $PWD
+
+    BOEHM_INSTALLED=true
+}
+
+ecl_build()
+{
+    if test -z "$1" || ! test "$1" == '--force' && test -e $ECL_PREFIX/bin/ecl; then
+          echo "ECL seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    gmp_build
+    # A copy of BOEHM GC is included in ecl/gc folder, will be automatically built
+
+		PWD=`pwd`
+
+		cd $DOWNLOAD_DIR
+
+    rm -rf ecl
+    wget -N http://sourceforge.net/projects/ecls/files/latest/download
+    mv download ecl.tar.gz
+    tar --extract --overwrite --gzip --file ecl.tar.gz
+    mv -f ecl-*  ecl
+
+    cd ecl
+    ./configure --prefix=$ECL_PREFIX  --with-gmp-prefix=$GMP_PREFIX --with-sse=yes \
+                --enable-longdouble --enable-c99complex --enable-threads           \
+                --enable-boehm=included --disable-shared
+    
+    make -j1     # -j4 seems to fail because of cyclic dependencies
+    make install
+
+		rm -rf  $DOWNLOAD_DIR/ecl.tar.gz
+    cd $PWD
+
+    ECL_INSTALLED=true
+}
+
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -931,6 +1003,8 @@ elif [ $1 == '--fftw' ]; then
     fftw_build $2
 elif [ $1 == '--d' ]; then
     gdc_build $2 
+elif [ $1 == '--lisp' ]; then
+    ecl_build $2 
 elif [ $1 == '--ginac' ]; then
     ginac_build $2
 elif [ $1 == '--llvm' ]; then

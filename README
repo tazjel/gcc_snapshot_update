@@ -1,15 +1,31 @@
-This shell script fetches the latest weekly build (snapshot) of GCC.
-It does these things all by itself:
+This shell script automates the compilation of the latest snapshot 
+of various software, such as GCC. It does these things all by itself:
 
 * Get the tar balls from FTP / HTTP sites
 * Extract them
+* Auto-download and build dependencies, if needed and wherever possible.
 * Configure, make, make install
 
-The fetch-build-install cycle also handles GDB, GMP, MPFR, MPC,
-BLAS, LAPACK, FFTW, OpenMPI and Fortran GSL.
+The fetch-build-install cycle also handles the following software:
+Boost -- C++ libraries
+Boehm -- garbage collector in C++
+Emacs -- the kitchen-sink editor
+GCC -- GNU Compiler Collection
+GDB -- GNU Debugger
+GDC -- compiler for D programming language
+GSL -- GNU Scientific Library, also Fortran bindings to it.
+Lisp -- Embeddable Common Lisp, both compiler and interpreter.
+FFTW -- Fast Fourier Transform in the West
+LAPACK -- the old-is-gold matrix library, also BLAS, pure Fortran.
+LLVM -- High-class alternative to GCC
+Octave -- Matlab-clone
+OpenMPI -- for parallelism in C++ / Fortran
+Python -- 2.x, 3.x, Numpy, Scipy and Matplotlib
+
+... and many other supporting software libs.
 
 You need to change the paths at the top of the script for your own
-needs. Tested on Ubuntu 10.10
+needs. Tested on Ubuntu 11.10 and Debian Squeeze, 64-bit.
 
 Mail: mail @AT@ bdsatish .DOT. in
 
