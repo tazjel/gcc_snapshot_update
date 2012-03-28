@@ -824,29 +824,29 @@ emacs_build()
 
 llvm_build()
 {
-		PWD=`pwd`
+    PWD=`pwd`
 
-		cd $DOWNLOAD_DIR
-		wget -N http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.tar.gz
-		wget -N http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.tar.gz
+    cd $DOWNLOAD_DIR
+    wget -N http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.tar.gz
+    wget -N http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.tar.gz
 
     tar --extract --overwrite --gzip --verbose --file llvm-$LLVM_VERSION.tar.gz
     tar --extract --overwrite --gzip --verbose --file clang-$LLVM_VERSION.tar.gz
 
-		# clang dir must go into LLVM_SRC_DIR/tools/clang
-		mv clang-$LLVM_VERSION.src/ llvm-$LLVM_VERSION.src/tools/clang
+    # clang dir must go into LLVM_SRC_DIR/tools/clang
+    mv clang-$LLVM_VERSION.src/ llvm-$LLVM_VERSION.src/tools/clang
 
-		cd llvm-$LLVM_VERSION.src
-		./configure --prefix=$LLVM_PREFIX --enable-targets=host --enable-optimized \
-				        --enable-pthreads --enable-pic --disable-docs --disable-shared
-		make -j4
-		make install
+    cd llvm-$LLVM_VERSION.src
+    ./configure --prefix=$LLVM_PREFIX --enable-targets=host --enable-optimized \
+                --enable-pthreads --enable-pic --disable-docs --disable-shared
+    make -j4
+    make install
 
-		# clang is automatically built, but not installed. We do it specifically:
-		cd tools/clang
-		make install
+    # clang is automatically built, but not installed. We do it specifically:
+    cd tools/clang
+    make install
 
-		rm -rf  $DOWNLOAD_DIR/llvm-$LLVM_VERSION.tar.gz $DOWNLOAD_DIR/clang-$LLVM_VERSION.tar.gz
+    rm -rf  $DOWNLOAD_DIR/llvm-$LLVM_VERSION.tar.gz $DOWNLOAD_DIR/clang-$LLVM_VERSION.tar.gz
     cd $PWD
 
     LLVM_INSTALLED=true
@@ -854,40 +854,40 @@ llvm_build()
 
 boost_build()
 {
-		PWD=`pwd`
+    PWD=`pwd`
 
-		cd $DOWNLOAD_DIR
+    cd $DOWNLOAD_DIR
 
-		# string replace 1.49.0 --> 1_49_0
+    # string replace 1.49.0 --> 1_49_0
     DIRNAME=boost_${BOOST_VERSION//./_}
-		wget -N http://sourceforge.net/projects/boost/files/boost/$BOOST_VERSION/$DIRNAME.tar.bz2/download
+    wget -N http://sourceforge.net/projects/boost/files/boost/$BOOST_VERSION/$DIRNAME.tar.bz2/download
     tar --extract --overwrite --bzip2 --verbose --file $DIRNAME.tar.bz2
 
-		cd $DIRNAME
-		./boostrap.sh --prefix=$BOOST_PREFIX
+    cd $DIRNAME
+    ./boostrap.sh --prefix=$BOOST_PREFIX
 
-		# OpenMPI support added, if mpic++ exists
-		if [ -x $OMPI_PREFIX/bin/mpic++ ]; then
-				echo "using mpi : $OMPI_PREFIX/bin/mpic++ ;" >> tools/build/v2/user-config.jam
-		fi
+    # OpenMPI support added, if mpic++ exists
+    if [ -x $OMPI_PREFIX/bin/mpic++ ]; then
+        echo "using mpi : $OMPI_PREFIX/bin/mpic++ ;" >> tools/build/v2/user-config.jam
+    fi
 
-		# Compile and install (b2 is same as bjam)
-		./b2 link=static  runtime-link=static install
+    # Compile and install (b2 is same as bjam)
+    ./b2 link=static  runtime-link=static install
 
-		# Boost.Build separately
-		cd tools/build/v2
-		./bootstrap.sh
-		./b2 install --prefix=$BOOST_PREFIX
+    # Boost.Build separately
+    cd tools/build/v2
+    ./bootstrap.sh
+    ./b2 install --prefix=$BOOST_PREFIX
 
-		# Download and install the PDF documentation
-		# Stupid guys: instead of naming it as boost_1_49_0_pdf they just say boost_1_49_pdf !
-		DOC=${DIRNAME:0:10}_pdf      # extract first 10 char from DIRNAME
-		http://sourceforge.net/projects/boost/files/boost-docs/$BOOST_VERSION/$DOC.zip/download
-		unzip $DOC
-		mv $DOC/ $BOOST_PREFIX/pdf
-		rm -rf $DOC.zip
+    # Download and install the PDF documentation
+    # Stupid guys: instead of naming it as boost_1_49_0_pdf they just say boost_1_49_pdf !
+    DOC=${DIRNAME:0:10}_pdf      # extract first 10 char from DIRNAME
+    http://sourceforge.net/projects/boost/files/boost-docs/$BOOST_VERSION/$DOC.zip/download
+    unzip $DOC
+    mv $DOC/ $BOOST_PREFIX/pdf
+    rm -rf $DOC.zip
 
-		rm -rf  $DOWNLOAD_DIR/$DIRNAME.tar.bz2
+    rm -rf  $DOWNLOAD_DIR/$DIRNAME.tar.bz2
     cd $PWD
 
     BOOST_INSTALLED=true
@@ -899,9 +899,9 @@ boehm_build()
           echo "Boehm seems to be installed. To re-install, pass --force.";  return
     fi
 
-		PWD=`pwd`
+    PWD=`pwd`
 
-		cd $DOWNLOAD_DIR
+    cd $DOWNLOAD_DIR
 
     rm -rf boehmgc
     wget -N https://github.com/ivmai/bdwgc/zipball/master
@@ -923,7 +923,7 @@ boehm_build()
     make -j4
     make install
 
-		rm -rf  $DOWNLOAD_DIR/ivmai-*.zip
+    rm -rf  $DOWNLOAD_DIR/ivmai-*.zip
     cd $PWD
 
     BOEHM_INSTALLED=true
@@ -938,9 +938,9 @@ ecl_build()
     gmp_build
     # A copy of BOEHM GC is included in ecl/gc folder, will be automatically built
 
-		PWD=`pwd`
+    PWD=`pwd`
 
-		cd $DOWNLOAD_DIR
+    cd $DOWNLOAD_DIR
 
     rm -rf ecl
     wget -N http://sourceforge.net/projects/ecls/files/latest/download
@@ -956,7 +956,7 @@ ecl_build()
     make -j1     # -j4 seems to fail because of cyclic dependencies
     make install
 
-		rm -rf  $DOWNLOAD_DIR/ecl.tar.gz
+    rm -rf  $DOWNLOAD_DIR/ecl.tar.gz
     cd $PWD
 
     ECL_INSTALLED=true
@@ -1008,7 +1008,7 @@ elif [ $1 == '--lisp' ]; then
 elif [ $1 == '--ginac' ]; then
     ginac_build $2
 elif [ $1 == '--llvm' ]; then
-		llvm_build $2
+    llvm_build $2
 elif [ $1 == '--octave' ]; then
     octave_build $2
 elif [ $1 == '--python' ]; then
