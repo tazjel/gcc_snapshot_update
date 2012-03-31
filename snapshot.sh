@@ -46,6 +46,7 @@ Usage:
   snapshot --python3          # Python 3.x interpreter
   snapshot --scipy            # Scipy
   snapshot --update           # Fetch and apply patch to existing GCC snapshot
+  snapshot --valgrind         # Valgrind memory checker
 EOF
 exit 1
 }
@@ -386,18 +387,22 @@ openmpi_build()
     # which in turn enables REAL*16 support for F90 and F77 (libquadmath!)
     LONG_DOUBLE=-m128bit-long-double
     MAX_ARRAY_DIM=2    # max 2D arrays are supported, can be up to 7
+    # --disable-mpi-cxx --disable-mpi-cxx-seek 
     ./configure --prefix=$OMPI_PREFIX --enable-static --disable-shared \
-            --disable-mpi-cxx --disable-mpi-cxx-seek --enable-mpi-threads \
+            --enable-mpi-threads --with-pic \
             --without-memory-manager --without-libnuma  \
             --with-f90-max-array-dim=${MAX_ARRAY_DIM} \
-            --with-wrapper-cflags=${LONG_DOUBLE}  CFLAGS=${LONG_DOUBLE} 
+            --with-wrapper-cflags=${LONG_DOUBLE}      \
+            --with-wrapper-cxxflags=${LONG_DOUBLE}  
 
     make clean
-    make -j 1
+    make -j 2
     make install
 
     mkdir -p $SYMLINK_BIN
-    ln -sfn $OMPI_PREFIX/bin/mpicc $SYMLINK_BIN/mpicc
+    ln -sfn $OMPI_PREFIX/bin/mpicc  $SYMLINK_BIN/mpicc
+    ln -sfn $OMPI_PREFIX/bin/mpic++ $SYMLINK_BIN/mpic++
+    ln -sfn $OMPI_PREFIX/bin/mpiCC  $SYMLINK_BIN/mpiCC
     ln -sfn $OMPI_PREFIX/bin/mpif77 $SYMLINK_BIN/mpif77
     ln -sfn $OMPI_PREFIX/bin/mpif90 $SYMLINK_BIN/mpif90
     ln -sfn $OMPI_PREFIX/bin/mpirun $SYMLINK_BIN/mpirun
@@ -962,6 +967,44 @@ ecl_build()
     ECL_INSTALLED=true
 }
 
+valgrind_build()
+{
+    [[ ${VALGRIND_PREFIX} ]] ||  VALGRIND_PREFIX=$INSTALL_DIR/valgrind
+
+    if test -z "$1" || ! test "$1" == '--force' && test -e $VALGRIND_PREFIX/bin/valgrind; then
+        valver=`$VALGRIND_PREFIX/bin/valgrind --version`
+        echo "Valgrind seems to be installed. To re-install, pass --force.";  
+        echo "Version: $valver"
+        return
+    fi
+    
+    local PWD=`pwd`
+    local machine=`uname -m`
+    if [ $machine == x86_64 ]; then 
+        bits="--enable-only64bit"
+    else
+        bits="--enable-only32bit"
+    fi
+
+    cd $DOWNLOAD_DIR
+
+    rm -rf valgrind
+    svn export svn://svn.valgrind.org/valgrind/trunk valgrind
+    cd valgrind
+    ./autogen.sh
+
+    ./configure --prefix=$VALGRIND_PREFIX --disable-dependency-tracking $bits
+    make -j4
+    make install
+
+    mkdir -p $SYMLINK_BIN
+    ln -sfn $VALGRIND_PREFIX/bin/valgrind  $SYMLINK_BIN/valgrind
+    ln -sfn $VALGRIND_PREFIX/bin/valgrind-listener  $SYMLINK_BIN/valgrind-listener
+    ln -sfn $VALGRIND_PREFIX/bin/vgdb  $SYMLINK_BIN/vgdb
+
+    cd $PWD
+}
+
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -1031,6 +1074,8 @@ elif [ $1 == '--pyqt4' ]; then
     echo [2] make 
     echo [3] make install
     echo Repeat [1]-[3] for PyQt4
+elif [ $1 == '--valgrind' ]; then
+    valgrind_build $2
 else
     echo 'Unrecognized option: "$1"'
     echo ""
