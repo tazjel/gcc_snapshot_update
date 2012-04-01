@@ -26,30 +26,33 @@ set -e
 usage() {
 cat <<EOF
 Usage:
-  snapshot --d                # GCC-based D Compiler (GDC)
-  snapshot --emacs            # install Emacs editor
-  snapshot --lisp             # ECL -- embeddable common lisp
-  snapshot --fftw             # Fast Fourier Transforms in the West
-  snapshot --fgsl             # Fortran bindings to GNU Scientific Library
-  snapshot --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
-  snapshot --gdb              # GNU Debugger snapshot
-  snapshot --ginac            # Builds GiNaC C++ symbolic library
-  snapshot --gmp              # GNU Multi-Precision library
-  snapshot --lapack           # BLAS and Lapack  from Netlib
-  snapshot --llvm             # LLVM with Clang compilers
-  snapshot --mpc              # Multi-Precision Complex arithmetic library
-  snapshot --mpfr             # Multi-Precision Floating Point library
-  snapshot --numpy            # Numpy
-  snapshot --octave           # Octave
-  snapshot --openmpi          # Open MPI library
-  snapshot --python           # Python 2.x interpreter
-  snapshot --python3          # Python 3.x interpreter
-  snapshot --scipy            # Scipy
-  snapshot --update           # Fetch and apply patch to existing GCC snapshot
-  snapshot --valgrind         # Valgrind memory checker
+  $me --cmake            # Install CMake build tool
+  $me --d                # GCC-based D Compiler (GDC)
+  $me --emacs            # install Emacs editor
+  $me --lisp             # ECL -- embeddable common lisp
+  $me --fftw             # Fast Fourier Transforms in the West
+  $me --fgsl             # Fortran bindings to GNU Scientific Library
+  $me --gcc              # Fetch and build GCC weekly snapshot (C, Fortran)
+  $me --gdb              # GNU Debugger snapshot
+  $me --ginac            # Builds GiNaC C++ symbolic library
+  $me --gmp              # GNU Multi-Precision library
+  $me --lapack           # BLAS and Lapack  from Netlib
+  $me --llvm             # LLVM with Clang compilers
+  $me --mpc              # Multi-Precision Complex arithmetic library
+  $me --mpfr             # Multi-Precision Floating Point library
+  $me --numpy            # Numpy
+  $me --octave           # Octave
+  $me --openmpi          # Open MPI library
+  $me --python           # Python 2.x interpreter
+  $me --python3          # Python 3.x interpreter
+  $me --scipy            # Scipy
+  $me --update           # Fetch and apply patch to existing GCC snapshot
+  $me --valgrind         # Valgrind memory checker
 EOF
 exit 1
 }
+
+me=$(basename $0)
 
 # For those software whose versions are not given below, it means that their 
 # latest versions are determined automatically.
@@ -61,6 +64,7 @@ PY_VERSION=2.7.2        # <= 2.7.2
 EMACS_VERSION=23.4      # <= 23.4
 LLVM_VERSION=3.0        # >= 3.0
 BOOST_VERSION=1.49.0    # like 1.xx.0 where xx=31 to 49
+CMAKE_VERSION=v2.8          # Latest in this series will be downloaded, like 2.8.7
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
 SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here 
@@ -178,7 +182,7 @@ gcc_build()
     if test -z "$1" || ! test "$1" == '--force' || test -z "$2" && test -e $GCC_PREFIX/bin/gcc; then
         echo "GCC seems to be installed. "
         echo "For example, to re-install C++, Ada and Fortran (C is built always): "
-        echo "          ./snapshot  --gcc --force c++ ada fortran "
+        echo "          ./$me  --gcc --force c++ ada fortran "
         echo "As of now, C, C++, Ada and Fortran are OK."
         return
     fi
@@ -981,9 +985,9 @@ valgrind_build()
     local PWD=`pwd`
     local machine=`uname -m`
     if [ $machine == x86_64 ]; then 
-        bits="--enable-only64bit"
+        local bits="--enable-only64bit"
     else
-        bits="--enable-only32bit"
+        local bits="--enable-only32bit"
     fi
 
     cd $DOWNLOAD_DIR
@@ -1004,6 +1008,46 @@ valgrind_build()
 
     cd $PWD
 }
+
+cmake_build()
+{
+    [[ ${CMAKE_PREFIX} ]] ||  CMAKE_PREFIX=$INSTALL_DIR/cmake
+
+    if test -z "$1" || ! test "$1" == '--force' && test -e $CMAKE_PREFIX/bin/cmake; then
+        valver=`$CMAKE_PREFIX/bin/cmake --version`
+        echo "CMake seems to be installed. To re-install, pass --force.";  
+        echo "Version: $valver"
+        return
+    fi
+
+    local PWD=`pwd`
+    cd $DOWNLOAD_DIR
+
+    wget -O cmake.html http://www.cmake.org/files/${CMAKE_VERSION}/
+    rm -rf cmake
+    # Last 5th line is the latest version
+    local tgz_file=`html2text cmake.html | tail -n5 | head -n1 | cut -f2 -d' '`
+    
+    wget -N http://www.cmake.org/files/${CMAKE_VERSION}/${tgz_file}
+    tar --extract --overwrite --gzip --file ${tgz_file}
+    rm -rf $DOWNLOAD_DIR/${tgz_file}
+
+    mv -f cmake-*  cmake
+    cd cmake
+
+    # --system-curl --system-libarchive
+    ./configure --prefix=$CMAKE_PREFIX --system-zlib  \
+                --system-bzip2  --no-qt-gui
+
+    make -j4
+    make install
+
+    ln -sfn $CMAKE_PREFIX/bin/cmake $SYMLINK_BIN/cmake
+    ln -sfn $CMAKE_PREFIX/bin/ccmake $SYMLINK_BIN/ccmake
+
+    cd $PWD
+}
+
 
 
 #------------------------- EXECUTION STARTS HERE --------------------------
@@ -1076,6 +1120,8 @@ elif [ $1 == '--pyqt4' ]; then
     echo Repeat [1]-[3] for PyQt4
 elif [ $1 == '--valgrind' ]; then
     valgrind_build $2
+elif [[ $1 == '--cmake' ]]; then
+    cmake_build $2
 else
     echo 'Unrecognized option: "$1"'
     echo ""
