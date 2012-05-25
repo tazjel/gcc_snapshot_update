@@ -43,6 +43,8 @@ Usage:
   $me --numpy            # Numpy
   $me --octave           # Octave
   $me --openmpi          # Open MPI library
+  $me --pari-gp          # Pari/GP number theory CAS
+  $me --pure             # Pure programming language, interpreter
   $me --python           # Python 2.x interpreter
   $me --python3          # Python 3.x interpreter
   $me --scipy            # Scipy
@@ -62,7 +64,7 @@ OPENMPI_VERSION=1.4     # <= 1.5
 GSL_VERSION=1.14        # <= 1.14
 PY_VERSION=2.7.3        # <= 2.7.3 or <= 3.2.3
 EMACS_VERSION=23.4      # <= 23.4
-LLVM_VERSION=3.0        # >= 3.0
+LLVM_VERSION=3.1        # >= 3.1
 BOOST_VERSION=1.49.0    # like 1.xx.0 where xx=31 to 49
 CMAKE_VERSION=v2.8          # Latest in this series will be downloaded, like 2.8.7
 
@@ -98,6 +100,7 @@ LLVM_PREFIX=$INSTALL_DIR/llvm        # LLVM / Clang
 ECL_PREFIX=$INSTALL_DIR/ecl          # Embeddable common lisp
 BOEHM_PREFIX=$INSTALL_DIR/boehmgc    # ./lib/libgc.a
 OCTAVE_PREFIX=$INSTALL_DIR/octave    
+FLTK_PREFIX=$INSTALL_DIR/fltk 
 
 # Global variables
 GMP_INSTALLED=false
@@ -113,19 +116,34 @@ gmp_build()
           echo "GMP seems to be installed. To re-install, pass --force.";  return
     fi
 
-    PWD=`pwd`
-    cd $DOWNLOAD_DIR
-    wget -N ftp://gcc.gnu.org/pub/gcc/infrastructure/gmp-*.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gmp-*.tar.bz2
+#     OLD_CFLAGS=${CFLAGS}
+#     export CFLAGS="${OLD_CFLAGS} -fpermissive -std=c99"
+#     OLD_CXXFLAGS=${CXXFLAGS}
+#     export CXXFLAGS="${OLD_CXXFLAGS} -fpermissive -std=c++03"
 
-    cd gmp-*
+    CWD=`pwd`
+    cd $DOWNLOAD_DIR
+    rm -f index.html* .listing
+    wget --no-remove-listing  ftp://ftp.gmplib.org/pub/
+    # Last but 3rd line is the latest one
+    local folder=$(cat .listing | tail -n3 | head -n1 | cut -d' ' -f16)
+
+    rm -rf ${folder}
+    wget -N ftp://ftp.gmplib.org/pub/${folder}/${folder}.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file ${folder}.tar.bz2
+
+    cd ${folder}
+    # Stupid hack to replace exit(0) with return(0) else the compiler will shout exit() not declared
+#     sed -i 's/exit(/return(/g' ./configure
+#     sed -i 's/exit (0)/return (0)/g' ./configure
     ./configure --prefix=$GMP_PREFIX --enable-static --disable-shared --enable-cxx
-    make clean
     make -j 2
     make install
 
-    rm -rf $DOWNLOAD_DIR/gmp-*.tar.bz2
-    cd $PWD
+#     export CFLAGS=${OLD_CFLAGS}
+#     export CXXFLAGS=${OLD_CXXFLAGS}
+    rm -rf $DOWNLOAD_DIR/${folder}.tar.bz2
+    cd $CWD
 
 }
 
@@ -190,6 +208,8 @@ gcc_build()
         echo "As of now, C, C++, Ada and Fortran are OK."
         return
     fi
+
+    # export CXXFLAGS+=" -fno-exceptions -fno-rtti "
 
     gpp=false
     gnat=false
@@ -291,7 +311,7 @@ gcc_build()
     make clean
     make -j 2
     make install
-    make distclean
+    # make distclean
 
     # export LDFLAGS=
 
@@ -300,6 +320,21 @@ gcc_build()
     ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/cc
     ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
     ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
+
+    # The following is the shared library version of libgcc.a but since
+    # we are passing --disable-shared, clang++ cannot find it.
+    # Instead pass -static-libgcc to clang
+
+    # ln -sfn /lib/libgcc_s.so.1 $GCC_PREFIX/lib/libgcc_s.so
+
+    # For --disable-shared, we don't generate libgcc_eh.a but all of its functions
+    # are included in libgcc.a itself. And libc always links with libgcc_eh.a, so we just symlink it
+    libgcc_folder=$(find $GCC_PREFIX -name libgcc.a)
+    libgcc_folder=$(dirname $libgcc_folder)
+    ln -sfn ${libgcc_folder}/libgcc.a ${libgcc_folder}/libgcc_eh.a
+
+
+    ln -sfn $GCC_PREFIX/lib/libgcc.a $GCC_PREFIX/lib/libgcc_s.so
 
     if [ $gfortran == true ]; then
       ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
@@ -324,6 +359,8 @@ gcc_build()
       ln -sfn $GCC_PREFIX/bin/gnatprep $SYMLINK_BIN/gnatprep
       ln -sfn $GCC_PREFIX/bin/gnatxref $SYMLINK_BIN/gnatxref
     fi
+
+    exit
 
     rm -rf $DOWNLOAD_DIR/gcc-core-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-fortran-*.tar.bz2
@@ -879,30 +916,58 @@ emacs_build()
 
 llvm_build()
 {
-    PWD=`pwd`
+    if test -z "$1" || ! test "$1" == '--force' && test -e $LLVM_PREFIX/bin/clang; then
+          $LLVM_PREFIX/bin/clang --version
+          echo "LLVM/Clang seems to be installed. To re-install, pass --force.";  return
+    fi
+
+    local CWD=`pwd`
 
     cd $DOWNLOAD_DIR
-    wget -N http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.tar.gz
-    wget -N http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.tar.gz
+    wget -N http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.src.tar.gz
+    wget -N http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.src.tar.gz
 
-    tar --extract --overwrite --gzip --verbose --file llvm-$LLVM_VERSION.tar.gz
-    tar --extract --overwrite --gzip --verbose --file clang-$LLVM_VERSION.tar.gz
+    rm -rf llvm-$LLVM_VERSION.src
+    tar --extract --overwrite --gzip --verbose --file llvm-$LLVM_VERSION.src.tar.gz
+    tar --extract --overwrite --gzip --verbose --file clang-$LLVM_VERSION.src.tar.gz
+
+    # Do not build with clang, instead force to build with GCC toolchain
+    export CC=$GCC_PREFIX/bin/gcc
+    export CXX=$GCC_PREFIX/bin/g++
+    export CPP=$GCC_PREFIX/bin/cpp
+    export ONLY_TOOLS=true           # Do not build unittests
+
+    local gcc_vers=$(gcc --version | head -n1 | cut -d' ' -f3)  # Parse GCC version
 
     # clang dir must go into LLVM_SRC_DIR/tools/clang
     mv clang-$LLVM_VERSION.src/ llvm-$LLVM_VERSION.src/tools/clang
 
+
     cd llvm-$LLVM_VERSION.src
-    ./configure --prefix=$LLVM_PREFIX --enable-targets=host --enable-optimized \
-                --enable-pthreads --enable-pic --disable-docs --disable-shared
+
+    #  --with-optimize-option="-O3 -march=native -funroll-loops"
+    # See also: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=645546
+    ./configure --prefix=$LLVM_PREFIX --enable-targets=host --enable-optimized --disable-assertions     \
+                --enable-threads --enable-pic --disable-docs --disable-shared \
+                --with-gcc-toolchain=$GCC_PREFIX --with-cxx-include-root=$GCC_PREFIX/include/c++/$gcc_vers
     make -j4
     make install
 
     # clang is automatically built, but not installed. We do it specifically:
     cd tools/clang
     make install
+    make distclean
 
-    rm -rf  $DOWNLOAD_DIR/llvm-$LLVM_VERSION.tar.gz $DOWNLOAD_DIR/clang-$LLVM_VERSION.tar.gz
-    cd $PWD
+    cd ../..
+    make distclean
+
+    # May be put these in .bash_aliases ?
+    #     alias clang="clang -static-libgcc"
+    #     alias clang++="clang++ -static-libgcc -static-libstdc++"
+
+
+    rm -rf  $DOWNLOAD_DIR/llvm-$LLVM_VERSION.src.tar.gz $DOWNLOAD_DIR/clang-$LLVM_VERSION.src.tar.gz
+    cd $CWD
 
     LLVM_INSTALLED=true
 }
@@ -1094,6 +1159,98 @@ cmake_build()
     cd $PWD
 }
 
+pure_build() {
+
+
+    export PATH=$LLVM_PREFIX/bin:$PATH
+    ./configure --with-static-llvm --with-libgmp-prefix=$HOME/foss/installed/gmp \
+                --with-libmpfr-prefix=$HOME/foss/installed/mpfr --with-readline  \
+                --enable-release --disable-shared --prefix=$HOME/foss/installed/pure \
+                --without/cast-elisp
+
+}
+
+mlterm_build()
+{
+
+# http://sourceforge.net/mailarchive/forum.php?thread_name=20120422031849.GA14566%40SDF.ORG&forum_name=mlterm-dev-en
+# http://eyegene.ophthy.med.umich.edu/unicode/#termemulator
+# http://www.scottro.net/qnd/qnd-mlterm.html
+./configure --prefix=$HOME/foss/installed/mlterm --enable-static --disable-shared \
+            --with-pic --enable-ind  --enable-anti-alias --disable-dependency-tracking \
+             --with-x --with-gui --with-tools=mlcc,mlconfig --with-gtk  \
+             --enable-ibus  --enable-fribidi
+
+make -j4
+make install
+}
+
+fltk_build()
+{
+./configure --prefix=$HOME/foss/installed/fltk --enable-xft  --enable-threads  --disable-shared
+make -j4
+make install
+ln -sfn $FLTK_PREFIX/bin/fltk-config $SYMLINK_BIN/fltk-config
+}
+
+
+pari_gp_build()
+{
+    [[ ${PARI_GP_PREFIX} ]] ||  PARI_GP_PREFIX=$INSTALL_DIR/pari-gp
+
+    if test -z "$1" || ! test "$1" == '--force' && test -e $PARI_GP_PREFIX/bin/gp; then
+        $PARI_GP_PREFIX/bin/gp --version
+        echo "GP/PARI seems to be installed. To re-install, pass --force.";  
+        return
+    fi
+
+    local cwd=`pwd`
+    cd $DOWNLOAD_DIR
+
+    wget --dont-remove-listing  ftp://pari.math.u-bordeaux.fr/pub/pari/unix/
+    rm -f index.html*
+    local tgz_file=$(cat .listing | tail -n3 | head -n1 | cut -d' ' -f21)
+    tgz_file=`echo $tgz_file | tr -d '\r'`      # Delete newline char
+    local folder=$(basename $tgz_file .tar.gz)         # strip the extension .tar.gz from $file
+    local version=$(echo $folder | cut -d'-' -f2)      # Like 2.5.1
+
+    rm -rf pari*
+    wget ftp://pari.math.u-bordeaux.fr/pub/pari/unix/$tgz_file
+    tar --extract --overwrite --gzip --file ${tgz_file}
+    
+    cd $folder
+
+    # hacks because FLTK's library dependencies are not recognized by Pari/GP
+    # Since FLTK uses C++'s new and delete, we replace gcc by g++
+    # A better solution would be -lstdc++ but it doesn't seem to work
+    OLD_LDFLAGS="$LDFLAGS"
+    LDFLAGS=`$FLTK_PREFIX/bin/fltk-config --ldflags`
+    export LDFLAGS
+    mv $SYMLINK_BIN/cc $SYMLINK_BIN/cc.bak
+    mv $SYMLINK_BIN/gcc $SYMLINK_BIN/gcc.bak 
+    ln -s $SYMLINK_BIN/g++ $SYMLINK_BIN/cc 
+    ln -s $SYMLINK_BIN/g++ $SYMLINK_BIN/gcc 
+
+    # Note the capital C in Configure !
+    # If you pass --tune, it's gonna take a loooong time to build
+      ./Configure --prefix=$HOME/foss/installed/pari-gp --static --graphic=fltk     \
+              --with-gmp=$HOME/foss/installed/gmp --with-fltk=$HOME/foss/installed/fltk    \
+              --with-readline
+
+    make -j4 gp
+    make install
+
+    mv -f $GCC_PREFIX/bin/gcc $SYMLINK_BIN/cc
+    mv -f $GCC_PREFIX/bin/gcc $SYMLINK_BIN/gcc
+    mv -f $GCC_PREFIX/bin/g++ $SYMLINK_BIN/c++
+    mv -f $GCC_PREFIX/bin/g++ $SYMLINK_BIN/g++
+
+    export LDFLAGS=$OLD_LDFLAGS
+
+    rm -f $DOWNLOAD_DIR/$tgz_file
+    cd $cwd
+}
+
 
 
 #------------------------- EXECUTION STARTS HERE --------------------------
@@ -1168,8 +1325,10 @@ elif [ $1 == '--valgrind' ]; then
     valgrind_build $2
 elif [[ $1 == '--cmake' ]]; then
     cmake_build $2
+elif [[ $1 == '--pari-gp' ]]; then
+    pari_gp_build $2
 else
-    echo 'Unrecognized option: "$1"'
+    echo 'Unrecognized option: '"$1"
     echo ""
     usage
 fi
