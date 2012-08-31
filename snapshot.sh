@@ -61,7 +61,7 @@ me=$(basename $0)
 GCC_VERSION=4.7         # <= 4.8
 GDB_VERSION=7.3         # <= 7.3
 OPENMPI_VERSION=1.4     # <= 1.5
-GSL_VERSION=1.14        # <= 1.14
+GSL_VERSION=1.15        # <= 1.15
 PY_VERSION=2.7.3        # <= 2.7.3 or <= 3.2.3
 EMACS_VERSION=23.4      # <= 23.4
 LLVM_VERSION=3.1        # >= 3.1
@@ -496,9 +496,8 @@ fgsl_build()
     tar --extract --overwrite --gzip --verbose --file  gsl-${GSL_VERSION}.tar.gz
     cd gsl-${GSL_VERSION}
 
-    ./configure --prefix=${GSL_PREFIX}  --enable-static --disable-shared
-    make clean
-    make -j 1
+    ./configure --prefix=${GSL_PREFIX}  --enable-static --disable-shared --with-pic --disable-dependency-tracking
+    make -j 2
     make install
     
     cd $DOWNLOAD_DIR
@@ -815,8 +814,8 @@ _EOF
 
     python setup.py build
     python setup.py install --prefix $PYTHON_PREFIX
-    rm -rf $DOWNLOAD_DIR/numpy.at.gz $DOWNLOAD_DIR/numpy-*
     cd $PWD
+    rm -rf $DOWNLOAD_DIR/numpy.at.gz $DOWNLOAD_DIR/numpy-*
 
     NUMPY_INSTALLED=true
 }
@@ -835,10 +834,9 @@ scipy_build()
 
     python setup.py build
     python setup.py install --prefix $PYTHON_PREFIX
-    rm -rf $DOWNLOAD_DIR/scipy.tar.gz $DOWNLOAD_DIR/scipy-*
-
     cd $PWD
 
+    rm -rf $DOWNLOAD_DIR/scipy.tar.gz $DOWNLOAD_DIR/scipy-*
     SCIPY_INSTALLED=true
 
 }
@@ -1260,13 +1258,30 @@ pari_gp_build()
 
 ghc_build()
 {
+    # apt-get install happy alex hscolour
+    # ---- Build from Source ------
     # download .tar.bz2 from http://www.haskell.org/ghc/
     # You may need to do help it find libgmp.a
     # ln -s /home/bdsatish/foss/installed/gmp/lib/libgmp.a /usr/local/lib/libgmp.a
-    ./configure --prefix=$HOME/foss/installed/ghc --disable-largefile --disable-shared \
-        --with-gmp-includes=$HOME/foss/installed/gmp/include                           \
+    ./configure --prefix=$HOME/foss/installed/ghc --disable-largefile  \
+        --with-gmp-includes=$HOME/foss/installed/gmp/include           \
         --with-gmp-libraries=$HOME/foss/installed/gmp/lib
 
+    make -j4
+    make install
+
+    # ---- Build Haskell Platform -------
+    # Download the x86_64 binary, say, http://www.haskell.org/ghc/dist/7.4.1/ghc-7.4.1-x86_64-unknown-linux.tar.bz2
+    # Unzip
+    ./configure --prefix=$HOME/foss/installed/ghc --with-gmp-includes=$HOME/foss/installed/gmp/include           \
+        --with-gmp-libraries=$HOME/foss/installed/gmp/lib
+    make install        # No need of 'make', this is a binary dist !
+    export PATH=$HOME/foss/installed/ghc/bin:$PATH
+    # Download Haskell Platform corresponding to that binary, say, http://lambda.haskell.org/platform/download/2012.2.0.0/haskell-platform-2012.2.0.0.tar.gz
+    # Unzip haskell-platform
+    ./configure --prefix=$HOME/foss/installed/ghc
+    make -j2 && make install
+    cabal update  #  initialize “the package list”  from Hackage
 }
 
 
