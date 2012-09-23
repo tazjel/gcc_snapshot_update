@@ -301,9 +301,9 @@ gcc_build()
     mkdir -p build
     cd build
    
-    # Needed ?  --enable-fixed-point --with-long-double-128 --disable-lto
+    # Needed ?  --enable-fixed-point --with-long-double-128 --enable-lto
     ../configure --prefix=$GCC_PREFIX --enable-languages=$langs  --disable-multilib --disable-multiarch \
-      --enable-checking=runtime --disable-libmudflap --enable-libgomp --disable-bootstrap \
+      --enable-checking=runtime --enable-libmudflap --enable-libgomp --disable-bootstrap  \
       --enable-static --disable-shared --disable-decimal-float  --with-system-zlib  --disable-libitm \
       --disable-build-poststage1-with-cxx  --disable-build-with-cxx  --without-cloog --without-ppl \
       --disable-nls --enable-threads --enable-__cxa_atexit \
@@ -320,12 +320,6 @@ gcc_build()
 
     # export LDFLAGS=
 
-    mkdir -p $SYMLINK_BIN
-    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/gcc
-    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/cc
-    ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
-    ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
-
     # The following is the shared library version of libgcc.a but since
     # we are passing --disable-shared, clang++ cannot find it.
     # Instead pass -static-libgcc to clang
@@ -340,6 +334,13 @@ gcc_build()
 
 
     ln -sfn $GCC_PREFIX/lib/libgcc.a $GCC_PREFIX/lib/libgcc_s.so
+
+: << 'END'
+    mkdir -p $SYMLINK_BIN
+    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/gcc
+    ln -sfn $GCC_PREFIX/bin/gcc $SYMLINK_BIN/cc
+    ln -sfn $GCC_PREFIX/bin/cpp $SYMLINK_BIN/cpp
+    ln -sfn $GCC_PREFIX/bin/gcov $SYMLINK_BIN/gcov
 
     if [ $gfortran == true ]; then
       ln -sfn $GCC_PREFIX/bin/gfortran $SYMLINK_BIN/gfortran
@@ -372,7 +373,7 @@ gcc_build()
     rm -rf $DOWNLOAD_DIR/gcc-testsuite-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-g++-*.tar.bz2
     rm -rf $DOWNLOAD_DIR/gcc-$GCC_VERSION-$DATE.tar.bz2
-
+END
     cd $PWD
 
 }
@@ -614,45 +615,45 @@ gdc_build()
     mpc_build
 
     PWD=`pwd`
-    GCC_BASE=4.6.3   # GCC version used to build D
+    GCC_BASE=4.7.2        # GCC version used to build D
 
     cd $DOWNLOAD_DIR
-    rm -rf goshawk-gdc-* gdc
+    rm -rf gdc
     
-    wget https://bitbucket.org/goshawk/gdc/get/default.tar.gz -O gdc.tar.gz
-    tar --extract --overwrite --gzip --verbose --file gdc.tar.gz
-    mv  goshawk-gdc-* gdc
-    mkdir gdc/dev
-    cd gdc/dev
+    mkdir gdc
+    cd gdc
 
-    wget -N ftp://gcc.gnu.org/pub/gcc/releases/gcc-$GCC_BASE/gcc-core-$GCC_BASE.tar.bz2
-    wget -N ftp://gcc.gnu.org/pub/gcc/releases/gcc-$GCC_BASE/gcc-g++-$GCC_BASE.tar.bz2
+    # Fetch latest GDC sources into dev/ directory
+    wget https://github.com/D-Programming-GDC/GDC/zipball/gdc-4.7 -O gdc.zip
+    unzip gdc.zip
+    mv D-Programming-GDC-* dev
 
-    tar --extract --overwrite --bzip2 --verbose --file gcc-core-$GCC_BASE.tar.bz2
-    tar --extract --overwrite --bzip2 --verbose --file gcc-g++-$GCC_BASE.tar.bz2
+    # Fetch the GCC sources
+    wget -N ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_BASE/gcc-$GCC_BASE.tar.bz2
+    tar --extract --overwrite --bzip2 --verbose --file gcc-$GCC_BASE.tar.bz2
+    rm -rf gcc-*.tar.bz2
 
-    rm gcc-*.tar.bz2
+    # Somehow inform GCC of GDC
+    cd dev
+    ./update-gcc.sh --setup ../gcc-$GCC_BASE
 
-    cd gcc-$GCC_BASE
-    ln -s ../../../d gcc/d
-    ./gcc/d/setup-gcc.sh -v2
-
-    mkdir objdir
-    cd objdir 
-    ../configure --prefix=$GDC_PREFIX --enable-languages=d --disable-multiarch \
+    # make and make install
+    mkdir ../objdir
+    cd ../objdir
+    ../gcc-$GCC_BASE/configure --prefix=$GDC_PREFIX --enable-languages=d --disable-multiarch \
                  --disable-multilib --disable-shared --enable-checking=release \
                  --disable-bootstrap --disable-nls --disable-libgomp --enable-static \
                  --disable-decimal-float --with-system-zlib --disable-libmudflap \
                  --with-gmp=$GMP_PREFIX --with-mpfr=$MPFR_PREFIX --with-mpc=$MPC_PREFIX \
-                 --with-bugurl="https://bitbucket.org/goshawk/gdc/issues"
+                 --with-bugurl="http://gdcproject.org/bugzilla"
 
-    make -j2
-    make install
+    make -j4 2>&1 | tee build.log
+    make install-strip
 
     ln -sfn $GDC_PREFIX/bin/gdc $SYMLINK_BIN/gdc
     ln -sfn $GDC_PREFIX/bin/gdmd $SYMLINK_BIN/gdmd
 
-    rm $DOWNLOAD_DIR/gdc.tar.gz
+    rm -rf $DOWNLOAD_DIR/gdc/
 
     cd $PWD
     GDC_INSTALLED=true
