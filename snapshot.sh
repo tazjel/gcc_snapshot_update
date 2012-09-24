@@ -50,6 +50,7 @@ Usage:
   $me --scipy            # Scipy
   $me --update           # Fetch and apply patch to existing GCC snapshot
   $me --valgrind         # Valgrind memory checker
+  $me --scala            # Scala + SBT
 EOF
 exit 1
 }
@@ -66,7 +67,8 @@ PY_VERSION=2.7.3        # <= 2.7.3 or <= 3.2.3
 EMACS_VERSION=23.4      # <= 23.4
 LLVM_VERSION=3.1        # >= 3.1
 BOOST_VERSION=1.49.0    # like 1.xx.0 where xx=31 to 49
-CMAKE_VERSION=v2.8          # Latest in this series will be downloaded, like 2.8.7
+CMAKE_VERSION=v2.8      # Latest in this series will be downloaded, like 2.8.7
+SCALA_VERSION=2.9.2     # <= 2.9.2
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
 SYMLINK_BIN=$HOME/bin   # Shortcut to created executables (if any) will go here 
@@ -101,6 +103,7 @@ ECL_PREFIX=$INSTALL_DIR/ecl          # Embeddable common lisp
 BOEHM_PREFIX=$INSTALL_DIR/boehmgc    # ./lib/libgc.a
 OCTAVE_PREFIX=$INSTALL_DIR/octave    
 FLTK_PREFIX=$INSTALL_DIR/fltk 
+SCALA_PREFIX=$INSTALL_DIR/scala      # ./bin/scala is the executable
 
 # Global variables
 GMP_INSTALLED=false
@@ -1285,6 +1288,32 @@ ghc_build()
     cabal update  #  initialize “the package list”  from Hackage
 }
 
+scala_build()
+{
+    cd $DOWNLOAD_DIR
+    rm -rf scala scala-*
+    tgz_file=scala-${SCALA_VERSION}.tgz
+    wget -N http://www.scala-lang.org/downloads/distrib/files/${tgz_file}
+    tar --extract --overwrite --gzip --file ${tgz_file}
+    rm -rf ${SCALA_PREFIX}
+    mkdir -p ${SCALA_PREFIX}
+    mv scala-${SCALA_VERSION}/*  ${SCALA_PREFIX}
+    rm -rf scala-${SCALA_VERSION}
+
+    # Get SBT. NOTE: This may *not* be the latest version, but it will be a maintained version for sure :)
+    rm -rf index.html index.html.*
+    sbt_url=http://scalasbt.artifactoryonline.com/scalasbt/sbt-native-packages/org/scala-sbt/sbt
+    wget --dont-remove-listing ${sbt_url}/
+    local sbt_version=$(html2text index.html | head -n5 | tail -n1 | cut -d'>' -f2 | cut -d'/' -f1)
+    rm -f index.html
+    wget -N ${sbt_url}/${sbt_version}/sbt.tgz
+    tar --extract --overwrite --gzip --file sbt.tgz
+    mv sbt/bin/* ${SCALA_PREFIX}/bin
+    rm -rf sbt/
+
+    # export PATH=${SCALA_PREFIX}/bin:${PATH}
+    rm -rf $DOWNLOAD_DIR/${tgz_file} $DOWNLOAD_DIR/sbt.tgz
+}
 
 #------------------------- EXECUTION STARTS HERE --------------------------
 
@@ -1362,6 +1391,8 @@ elif [[ $1 == '--pari-gp' ]]; then
     pari_gp_build $2
 elif [[ $1 == '--haskell' ]]; then
     ghc_build $2
+elif [[ $1 == '--scala' ]]; then
+    scala_build $2
 else
     echo 'Unrecognized option: '"$1"
     echo ""
