@@ -67,7 +67,7 @@ PY_VERSION=2.7.3        # <= 2.7.3 or <= 3.2.3
 EMACS_VERSION=23.4      # <= 23.4
 LLVM_VERSION=3.1        # >= 3.1
 BOOST_VERSION=1.49.0    # like 1.xx.0 where xx=31 to 49
-CMAKE_VERSION=v2.8      # Latest in this series will be downloaded, like 2.8.7
+CMAKE_VERSION=v2.8      # Latest in this series will be downloaded, like 2.8.9
 SCALA_VERSION=2.9.2     # <= 2.9.2
 
 # Suggested to put ~/bin your ".profile" or equivalent start-up file
@@ -658,7 +658,6 @@ gdc_build()
 
     rm -rf $DOWNLOAD_DIR/gdc/
 
-    cd $PWD
     GDC_INSTALLED=true
 }
 
@@ -908,16 +907,16 @@ emacs_build()
     wget -N  ftp://ftp.gnu.org/gnu/emacs/emacs-$EMACS_VERSION.tar.bz2
     tar --extract --overwrite --bzip2 --verbose --file emacs-$EMACS_VERSION.tar.bz2
 
-    # aptitude install libxft2 libxft2-dev libxaw7-dev libjpeg62-dev libgif-dev libtiff4-dev libxaw3dxft6 libxaw7-dev libxaw7
+    # aptitude install [libncurses5-dev libxaw7-dev libxft2-dev] libjpeg62-dev libgif-dev libtiff4-dev libxaw3dxft6  libxaw7
     # NO POINT installing Xaw3d -- even if it is present, configure says 'no'
-    # If you don't want image support: -with-xpm=no --with-jpeg=no --with-gif=no --with-tiff=no
+    # If you don't want image support: -with-xpm=no --with-png=no --with-jpeg=no --with-gif=no --with-tiff=no
     cd emacs-$EMACS_VERSION
-    ./configure --prefix=$EMACS_PREFIX  \
-                --with-x --with-x-tookit=athena  --with-xft  --with-dbus
+    ./configure --prefix=$EMACS_PREFIX --with-png=no --with-jpeg=no --with-gif=no --with-tiff=no \
+                --with-x --with-x-toolkit=athena  --with-xft  --with-dbus
     make -j2
     make install
 
-    rm -rf $DOWNLOAD_DIR/emacs-$EMACS_VERSION.tar.bz2
+    # rm -rf $DOWNLOAD_DIR/emacs-$EMACS_VERSION.tar.bz2
     cd $PWD
 
     EMACS_INSTALLED=true
@@ -1113,7 +1112,8 @@ valgrind_build()
     cd $DOWNLOAD_DIR
 
     rm -rf valgrind
-    svn export svn://svn.valgrind.org/valgrind/trunk valgrind
+    git clone git://repo.or.cz/valgrind.git
+    # svn export svn://svn.valgrind.org/valgrind/trunk valgrind
     cd valgrind
     ./autogen.sh
 
@@ -1121,10 +1121,10 @@ valgrind_build()
     make -j4
     make install
 
-    mkdir -p $SYMLINK_BIN
-    ln -sfn $VALGRIND_PREFIX/bin/valgrind  $SYMLINK_BIN/valgrind
-    ln -sfn $VALGRIND_PREFIX/bin/valgrind-listener  $SYMLINK_BIN/valgrind-listener
-    ln -sfn $VALGRIND_PREFIX/bin/vgdb  $SYMLINK_BIN/vgdb
+    # mkdir -p $SYMLINK_BIN
+    # ln -sfn $VALGRIND_PREFIX/bin/valgrind  $SYMLINK_BIN/valgrind
+    # ln -sfn $VALGRIND_PREFIX/bin/valgrind-listener  $SYMLINK_BIN/valgrind-listener
+    # ln -sfn $VALGRIND_PREFIX/bin/vgdb  $SYMLINK_BIN/vgdb
 
     cd $PWD
 }
@@ -1147,23 +1147,25 @@ cmake_build()
     rm -rf cmake
     # Last 5th line is the latest version
     local tgz_file=`html2text cmake.html | tail -n5 | head -n1 | cut -f2 -d' '`
-    
+    local version=`echo ${tgz_file} | cut -d'-' -f2`
+    version=`echo ${version%.*.*}`
+
     wget -N http://www.cmake.org/files/${CMAKE_VERSION}/${tgz_file}
     tar --extract --overwrite --gzip --file ${tgz_file}
-    rm -rf $DOWNLOAD_DIR/${tgz_file}
+    # rm -rf $DOWNLOAD_DIR/${tgz_file}
 
-    mv -f cmake-*  cmake
+    mv -f cmake-${version}  cmake
     cd cmake
 
-    # --system-curl --system-libarchive
-    ./configure --prefix=$CMAKE_PREFIX --system-zlib  \
-                --system-bzip2  --no-qt-gui
+    # --system-curl --system-libarchive --system-zlib --system-bzip2
+    ./configure --prefix=$CMAKE_PREFIX   \
+                  --no-qt-gui
 
     make -j4
     make install
 
-    ln -sfn $CMAKE_PREFIX/bin/cmake $SYMLINK_BIN/cmake
-    ln -sfn $CMAKE_PREFIX/bin/ccmake $SYMLINK_BIN/ccmake
+    # ln -sfn $CMAKE_PREFIX/bin/cmake $SYMLINK_BIN/cmake
+    # ln -sfn $CMAKE_PREFIX/bin/ccmake $SYMLINK_BIN/ccmake
 
     cd $PWD
 }
@@ -1313,6 +1315,19 @@ scala_build()
 
     # export PATH=${SCALA_PREFIX}/bin:${PATH}
     rm -rf $DOWNLOAD_DIR/${tgz_file} $DOWNLOAD_DIR/sbt.tgz
+}
+
+plplot_build()
+{
+  # Download tgz from here: http://plplot.sourceforge.net/download.php
+  cd plplot-version/
+  mkdir build && cd build
+  # CMake options for PLplot: http://www.miscdebris.net/plplot_wiki/index.php?title=CMake_options_for_PLplot
+  cmake -DCMAKE_INSTALL_PREFIX=${HOME}/foss/installed/plplot -DBUILD_SHARED_LIBS=OFF \
+        -DENABLE_DYNDRIVERS=OFF -DHAVE_QHULL=OFF -DWITH_CSA=OFF -DENABLE_python=OFF \
+        -DENABLE_java=OFF -DENABLE_ada=OFF -DENABLE_d=OFF ..
+  make -j4
+  make install
 }
 
 #------------------------- EXECUTION STARTS HERE --------------------------
